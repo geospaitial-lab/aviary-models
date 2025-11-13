@@ -1,0 +1,15 @@
+repos:
+- repo: https://www.github.com/pre-commit/pre-commit-hooks
+  rev: v5.0.0
+  hooks:
+    - id: check-added-large-files
+    - id: check-case-conflict
+    - id: check-toml
+    - id: check-yaml
+    - id: debug-statements
+    - id: end-of-file-fixer
+    - id: trailing-whitespace
+- repo: https://www.github.com/astral-sh/ruff-pre-commit
+  rev: v0.14.5
+  hooks:
+    - id: ruff
