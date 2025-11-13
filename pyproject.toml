@@ -1,0 +1,82 @@
+[build-system]
+requires = [
+    "setuptools",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "geospaitial-lab-aviary-models"
+description = "Models for aviary"
+readme = "README.md"
+authors = [
+    {name = "Marius Maryniak", email = "marius.maryniak@w-hs.de"},
+    {name = "Alexander Roß", email = "alexander.ross@w-hs.de"},
+]
+maintainers = [
+    {name = "Marius Maryniak", email = "marius.maryniak@w-hs.de"},
+    {name = "Alexander Roß", email = "alexander.ross@w-hs.de"},
+    {name = "Stefan Küpper", email = "stefan.kuepper@w-hs.de"},
+]
+license = {text = "GPL-3.0"}
+requires-python = ">=3.10"
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+dynamic = [
+    "version",
+]
+dependencies = [
+    "geospaitial-lab-aviary>=1.0.0b4",
+]
+
+[project.urls]
+Homepage = "https://www.github.com/geospaitial-lab/aviary-models"
+Documentation = "https://geospaitial-lab.github.io/aviary"
+
+[tool.setuptools.dynamic]
+version = {attr = "aviary-models.__version__"}
+
+[tool.setuptools.packages]
+find = {where = ["."], include = ["aviary-models*"]}
+
+[tool.setuptools.package-data]
+aviary-models = ["py.typed"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D100",
+    "D104",
+    "D205",
+    "D212",
+    "D415",
+    "FBT001",
+    "FBT002",
+    "PLR0913",
+    "PT003",
+]
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"
+multiline-quotes = "single"
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = [
+    "pydantic.BaseModel",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
