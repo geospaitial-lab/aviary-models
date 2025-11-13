@@ -50,7 +50,7 @@ def bump_package_version(
     Parameters:
         bumped_version: bumped version
     """
-    package_path = Path(__file__).parents[2] / 'aviary-models' / '__init__.py'
+    package_path = Path(__file__).parents[2] / 'aviary_models' / '__init__.py'
 
     with package_path.open() as file:
         lines = file.readlines()

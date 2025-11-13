@@ -43,13 +43,13 @@ Homepage = "https://www.github.com/geospaitial-lab/aviary-models"
 Documentation = "https://geospaitial-lab.github.io/aviary"
 
 [tool.setuptools.dynamic]
-version = {attr = "aviary-models.__version__"}
+version = {attr = "aviary_models.__version__"}
 
 [tool.setuptools.packages]
-find = {where = ["."], include = ["aviary-models*"]}
+find = {where = ["."], include = ["aviary_models*"]}
 
 [tool.setuptools.package-data]
-aviary-models = ["py.typed"]
+aviary_models = ["py.typed"]
 
 [tool.ruff]
 line-length = 120
