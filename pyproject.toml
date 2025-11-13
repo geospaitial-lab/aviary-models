@@ -78,5 +78,10 @@ runtime-evaluated-base-classes = [
     "pydantic.BaseModel",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"dev/scripts/*" = [
+    "T201",
+]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"

@@ -1,0 +1,61 @@
+name: Bump version
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        type: choice
+        description: Type of bump
+        options:
+        - major
+        - minor
+        - patch
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  UV_SYSTEM_PYTHON: 1
+
+jobs:
+  bump_version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@85856786d1ce8acfbcc2f13a5f3fbd6b938f9f41 # v7.1.2
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -r dev/requirements/bump_version_requirements.txt
+
+      - name: Bump version
+        run: |
+          echo "VERSION=$(python -m dev.scripts.get_version)" >> $GITHUB_ENV
+          python -m dev.scripts.bump_version --bump-type ${{ github.event.inputs.bump_type }}
+          echo "BUMPED_VERSION=$(python -m dev.scripts.get_version)" >> $GITHUB_ENV
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          commit-message: bump version from ${{ env.VERSION }} to ${{ env.BUMPED_VERSION }}
+          sign-commits: true
+          branch: build/bump-version
+          title: 'build: bump version from ${{ env.VERSION }} to ${{ env.BUMPED_VERSION }}'
+          labels: |
+            build
+            ignore for release
+          assignees: |
+            mrsmrynk
+          reviewers: |
+            mrsmrynk
