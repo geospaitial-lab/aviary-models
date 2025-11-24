@@ -22,7 +22,4 @@ from .sursentia import (
 __all__ = [
     'Sursentia',
     'SursentiaConfig',
-    '__version__',
 ]
-
-__version__ = '0.1.0b1.post1'
