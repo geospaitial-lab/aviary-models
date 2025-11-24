@@ -46,6 +46,9 @@ all = [
     "xformers>=0.0.32",
 ]
 
+[project.entry-points."aviary.plugins"]
+aviary_models = "aviary_models"
+
 [project.urls]
 Homepage = "https://www.github.com/geospaitial-lab/aviary-models"
 Documentation = "https://geospaitial-lab.github.io/aviary"
