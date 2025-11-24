@@ -38,6 +38,14 @@ dependencies = [
     "geospaitial-lab-aviary>=1.0.0b4",
 ]
 
+[project.optional-dependencies]
+sursentia = [
+    "xformers>=0.0.32",
+]
+all = [
+    "xformers>=0.0.32",
+]
+
 [project.urls]
 Homepage = "https://www.github.com/geospaitial-lab/aviary-models"
 Documentation = "https://geospaitial-lab.github.io/aviary"
