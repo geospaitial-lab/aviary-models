@@ -40,9 +40,11 @@ dependencies = [
 
 [project.optional-dependencies]
 sursentia = [
+    "huggingface_hub>=1.1.0",
     "xformers>=0.0.32",
 ]
 all = [
+    "huggingface_hub>=1.1.0",
     "xformers>=0.0.32",
 ]
 
