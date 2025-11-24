@@ -1,3 +1,4 @@
 -r requirements/bump_version_requirements.txt
+-r requirements/ci_requirements.txt
 -r requirements/docs_requirements.txt
 -r requirements/pypi_requirements.txt
