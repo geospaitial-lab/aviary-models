@@ -1,0 +1,132 @@
+site_name: aviary-models
+site_url: https://geospaitial-lab.github.io/aviary-models
+repo_name: geospaitial-lab/aviary-models
+repo_url: https://www.github.com/geospaitial-lab/aviary-models
+docs_dir: ../docs
+exclude_docs: README.md
+
+nav:
+  - Get Started: index.md
+  - API Reference:
+    - API Reference: api_reference/index.md
+    - sursentia:
+      - Sursentia: api_reference/sursentia/sursentia.md
+
+not_in_nav: |
+  legal_notice.md
+  privacy_policy.md
+
+theme:
+  name: material
+  custom_dir: ../docs/overrides
+  language: en
+  logo_light_mode: assets/aviary_logo_black.svg
+  logo_dark_mode: assets/aviary_logo_white.svg
+  favicon: assets/aviary_logo_white.svg
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    admonition:
+      abstract: material/run-fast
+    repo: simple/github
+  features:
+    - content.code.annotate
+    - content.code.copy
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tabs
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: white
+      accent: custom
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: black
+      accent: custom
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to light mode
+
+plugins:
+  - privacy
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            heading_level: 3
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            docstring_style: google
+            docstring_section_style: spacy
+            merge_init_into_class: true
+            show_docstring_raises: false
+            annotations_path: source
+            show_signature: false
+            show_overloads: false
+          paths:
+            - ../
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - toc:
+      anchorlink: true
+      title: On this page
+
+extra:
+  consent:
+    title: Privacy Consent
+    description: |
+      We use third-party services (but <strong>no cookies</strong>)
+      to improve the documentation and the user experience.<br />
+      You can change the privacy settings at any time.
+      Have a look at our privacy policy for further information.
+    cookies:
+      github: |
+        <a href="https://www.github.com" target="_blank" rel="noopener noreferrer">GitHub</a>
+        for repository information
+    actions:
+      - accept
+      - reject
+      - manage
+  generator: false
+  social:
+    - icon: simple/matrix
+      link: https://matrix.to/#/#geospaitial-lab-aviary:matrix.org
+
+extra_css:
+  - stylesheets/color.css
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/consent.js
+  - javascripts/open_links_in_new_tab.js
+
+copyright:
+  © 2025 geospaitial lab
