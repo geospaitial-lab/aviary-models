@@ -13,13 +13,3 @@
 #
 #  You should have received a copy of the GNU General Public License along with aviary-models.
 #  If not, see <https://www.gnu.org/licenses/>.
-
-from .sursentia import (
-    Sursentia,
-    SursentiaConfig,
-)
-
-__all__ = [
-    'Sursentia',
-    'SursentiaConfig',
-]
