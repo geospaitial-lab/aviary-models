@@ -70,6 +70,8 @@ class SursentiaConfig(pydantic.BaseModel):
     """Configuration for the `from_config` class method of `Sursentia`
 
     Create the configuration from a config file:
+        - Use '1.0' instead of `SursentiaVersion.V1_0`
+        - Use 'cpu' or 'gpu' instead of `Device.CPU` or `Device.GPU`
         - Use null instead of None
         - Use false or true instead of False or True
 
@@ -107,9 +109,9 @@ class SursentiaConfig(pydantic.BaseModel):
             defaults to 'sursentia_solar'
         batch_size: Batch size of the sliding window inference -
             defaults to 1
-        version: Version of the model -
+        version: Version of the model (`V1_0`) -
             defaults to `SursentiaVersion.V1_0`
-        device: Device to run the model on -
+        device: Device to run the model on (`CPU` or `GPU`) -
             defaults to `Device.CPU`
         cache_dir_path: Path to the cache directory of the model -
             defaults to 'cache'
@@ -183,8 +185,8 @@ class Sursentia:
             solar_channel_name: Channel name of the solar panels channel (if None, the solar head of the model
                 is not used)
             batch_size: Batch size of the sliding window inference
-            version: Version of the model
-            device: Device to run the model on
+            version: Version of the model (`V1_0`)
+            device: Device to run the model on (`CPU` or `GPU`)
             cache_dir_path: Path to cache directory of the model
             remove_channels: If True, the channels are removed
         """
