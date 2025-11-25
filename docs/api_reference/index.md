@@ -11,4 +11,4 @@ aviary-models includes the following models:
 
 </div>
 
-  [**Sursentia**]: sursentia/sursentia.md
+  [**Sursentia**]: sursentia.md

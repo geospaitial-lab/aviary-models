@@ -9,8 +9,7 @@ nav:
   - Get Started: index.md
   - API Reference:
     - API Reference: api_reference/index.md
-    - sursentia:
-      - Sursentia: api_reference/sursentia/sursentia.md
+    - Sursentia: api_reference/sursentia.md
 
 not_in_nav: |
   legal_notice.md
