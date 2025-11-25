@@ -14,7 +14,7 @@
 #  You should have received a copy of the GNU General Public License along with aviary-models.
 #  If not, see <https://www.gnu.org/licenses/>.
 
-from .sursentia import (
+from .sursentia.sursentia import (
     Sursentia,
     SursentiaConfig,
 )
