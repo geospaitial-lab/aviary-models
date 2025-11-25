@@ -15,13 +15,17 @@
 #  If not, see <https://www.gnu.org/licenses/>.
 
 from .sursentia.sursentia import (
+    Device,
     Sursentia,
     SursentiaConfig,
+    SursentiaVersion,
 )
 
 __all__ = [
+    'Device',
     'Sursentia',
     'SursentiaConfig',
+    'SursentiaVersion',
     '__version__',
 ]
 
