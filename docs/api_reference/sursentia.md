@@ -11,3 +11,14 @@
 ---
 
 ::: aviary_models.SursentiaConfig
+
+---
+
+::: aviary_models.Device
+    options:
+      filters:
+      - "!to_torch"
+
+---
+
+::: aviary_models.SursentiaVersion

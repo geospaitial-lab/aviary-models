@@ -13,20 +13,3 @@
 #
 #  You should have received a copy of the GNU General Public License along with aviary-models.
 #  If not, see <https://www.gnu.org/licenses/>.
-
-from .sursentia.sursentia import (
-    Device,
-    Sursentia,
-    SursentiaConfig,
-    SursentiaVersion,
-)
-
-__all__ = [
-    'Device',
-    'Sursentia',
-    'SursentiaConfig',
-    'SursentiaVersion',
-    '__version__',
-]
-
-__version__ = '0.1.0b1.post1'

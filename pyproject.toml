@@ -38,6 +38,17 @@ dependencies = [
     "geospaitial-lab-aviary>=1.0.0b4",
 ]
 
+[project.optional-dependencies]
+sursentia = [
+    "huggingface_hub>=1.1.0",
+]
+all = [
+    "huggingface_hub>=1.1.0",
+]
+
+[project.entry-points."aviary.plugins"]
+aviary_models = "aviary_models"
+
 [project.urls]
 Homepage = "https://www.github.com/geospaitial-lab/aviary-models"
 Documentation = "https://geospaitial-lab.github.io/aviary"
