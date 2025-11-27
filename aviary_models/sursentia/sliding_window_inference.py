@@ -14,98 +14,95 @@
 #  You should have received a copy of the GNU General Public License along with aviary-models.
 #  If not, see <https://www.gnu.org/licenses/>.
 
+#  ruff: noqa: D101, D102, D107, N803, N806
+
 from math import ceil
 
 import torch
 
 
 class SlidingWindowInference:
-    def __init__(self,
-                 window_size,
-                 batch_size,
-                 model_receptive_field,
-                 overlap=0.5,
-                 downweight_edges=True):
-        self.window_size = window_size
-        self.batch_size = batch_size
-        self.overlap = overlap
-        self.downweight_edges = downweight_edges
-        self.model_receptive_field = model_receptive_field
-
-        self.model_halve_n_times = 5
+    def __init__(
+        self,
+        window_size: int,
+        batch_size: int,
+        overlap: float = 0.5,
+        downweight_edges: bool = True,
+    ) -> None:
+        self._window_size = window_size
+        self._batch_size = batch_size
+        self._overlap = overlap
+        self._downweight_edges = downweight_edges
 
     @staticmethod
-    def get_batch_stats(batch):
+    def get_batch_stats(
+        batch: dict[str, torch.Tensor],
+    ) -> tuple[int, int, int, torch.device]:
         B = H = W = device = None
+
         for value in batch.values():
-            assert value.dim() <= 4
             if value.dim() == 4:
                 B, _, H, W = value.shape
                 device = value.device
                 break
-        assert B is not None
-        assert H is not None
-        assert W is not None
-        assert device is not None
 
         return B, H, W, device
 
-    def get_sliding_window_params(self, H, W, device):
-        if self.model_receptive_field is not None:
-            buffer = ((self.model_receptive_field + 2 ** self.model_halve_n_times - 1)
-                      // 2 ** self.model_halve_n_times * 2 ** self.model_halve_n_times)
-            kernel_size = self.window_size + buffer
-            kernel_size = min(kernel_size, ((min(H, W) + 2 ** self.model_halve_n_times - 1)
-                      // 2 ** self.model_halve_n_times * 2 ** self.model_halve_n_times))
-            stride = self.window_size
+    def get_sliding_window_params(
+        self,
+        device: torch.device,
+    ) -> tuple[int, int, torch.Tensor]:
+        kernel_size = self._window_size
+        stride = round(self._window_size * self._overlap)
+        patch_pixel_weights = torch.ones(
+            size=(kernel_size, kernel_size),
+            dtype=torch.float32,
+            device=device,
+        )
 
-            patch_pixel_weights = torch.ones((kernel_size, kernel_size), device=device, dtype=torch.float32)
-            if self.downweight_edges:
-                patch_pixel_weights[:buffer // 2, :] = 1e-6
-                patch_pixel_weights[-buffer // 2:, :] = 1e-6
-                patch_pixel_weights[:, :buffer // 2] = 1e-6
-                patch_pixel_weights[:, -buffer // 2:] = 1e-6
-        else:
-            kernel_size = self.window_size
-            stride = round(self.window_size * self.overlap)
-            patch_pixel_weights = torch.ones((kernel_size, kernel_size), device=device, dtype=torch.float32)
-            if self.downweight_edges:
-                indices = torch.stack(torch.meshgrid(torch.arange(kernel_size,
-                                                                  dtype=patch_pixel_weights.dtype,
-                                                                  device=patch_pixel_weights.device),
-                                                     torch.arange(kernel_size,
-                                                                  dtype=patch_pixel_weights.dtype,
-                                                                  device=patch_pixel_weights.device), indexing='ij'))
-                center_index = (kernel_size - 1) / 2
-                distances = torch.maximum((indices[0] - center_index).abs(), (indices[1] - center_index).abs())
-                patch_pixel_weights = (
-                            1 - (distances - distances.min()) / (distances.max() - distances.min()) * (1 - 1e-6))
+        if self._downweight_edges:
+            indices = torch.stack(torch.meshgrid(torch.arange(kernel_size,
+                                                              dtype=patch_pixel_weights.dtype,
+                                                              device=patch_pixel_weights.device),
+                                                 torch.arange(kernel_size,
+                                                              dtype=patch_pixel_weights.dtype,
+                                                              device=patch_pixel_weights.device), indexing='ij'))
+
+            center_index = (kernel_size - 1) / 2
+            distances = torch.maximum((indices[0] - center_index).abs(), (indices[1] - center_index).abs())
+            patch_pixel_weights = (
+                        1 - (distances - distances.min()) / (distances.max() - distances.min()) * (1 - 1e-6))
 
         return kernel_size, stride, patch_pixel_weights
 
     @staticmethod
-    def align_sliding_window_params(H, W, kernel_size, init_stride):
+    def align_sliding_window_params(
+        H: int,
+        W: int,
+        kernel_size: int,
+        init_stride: int,
+    ) -> tuple[int, int, int, int, int]:
         n_patches_y = max(ceil((H - kernel_size) / init_stride + 1), 1)
         n_patches_x = max(ceil((W - kernel_size) / init_stride + 1), 1)
         stride_y = ceil((H - kernel_size) / (n_patches_y - 1)) if n_patches_y > 1 else 1
         stride_x = ceil((W - kernel_size) / (n_patches_x - 1)) if n_patches_x > 1 else 1
-
-        assert stride_y <= init_stride
-        assert stride_x <= init_stride
 
         stride = (stride_y, stride_x)
 
         padded_H = (n_patches_y - 1) * stride_y + kernel_size
         padded_W = (n_patches_x - 1) * stride_x + kernel_size
 
-        assert padded_H >= H
-        assert padded_W >= W
-
         return stride, padded_H, padded_W, n_patches_y, n_patches_x
 
     @staticmethod
-    def make_patches(batch, kernel_size, stride, n_patches_per_item,
-                     value_padding_H=0, value_padding_W=0):
+    def make_patches(
+        batch: dict[str, torch.Tensor],
+        kernel_size: int,
+        stride: int,
+        n_patches_per_item: int,
+        value_padding_H: int = 0,
+        value_padding_W: int = 0,
+    ) -> dict[str, torch.Tensor]:
         patched_batch = {}
 
         for key, value in batch.items():
@@ -128,11 +125,21 @@ class SlidingWindowInference:
         return patched_batch
 
     @staticmethod
-    def reassemble_patches(preds, patch_pixel_weights, kernel_size, stride, n_patches_per_item,
-                           B, padded_H, padded_W, H, W):
+    def reassemble_patches(
+        preds: dict[str, torch.Tensor],
+        patch_pixel_weights: torch.Tensor,
+        kernel_size: int,
+        stride: int,
+        n_patches_per_item: int,
+        B: int,
+        padded_H: int,
+        padded_W: int,
+        H: int,
+        W: int,
+    ) -> dict[str, torch.Tensor]:
         pred = {}
+
         for key, value in preds.items():
-            assert value.dim() == 4
             unfolded_value = value.reshape(B, n_patches_per_item, value.shape[1], kernel_size, kernel_size)
             unfolded_value = unfolded_value.moveaxis(1, -1)
             pixel_weights = patch_pixel_weights.reshape(1, 1, kernel_size, kernel_size, 1).expand_as(unfolded_value)
@@ -155,10 +162,14 @@ class SlidingWindowInference:
 
         return pred
 
-    def __call__(self, model, batch):
+    def __call__(
+        self,
+        model: torch.nn.Module,
+        batch: dict[str, torch.Tensor],
+    ) -> dict[str, torch.Tensor]:
         B, H, W, device = self.get_batch_stats(batch)
 
-        kernel_size, init_stride, patch_pixel_weights = self.get_sliding_window_params(H, W,device)
+        kernel_size, init_stride, patch_pixel_weights = self.get_sliding_window_params(device)
 
         stride, padded_H, padded_W, n_patches_y, n_patches_x = self.align_sliding_window_params(H,
                                                                                                 W,
@@ -168,20 +179,28 @@ class SlidingWindowInference:
         value_padding_W = padded_W - W
 
         n_patches_per_item = n_patches_x * n_patches_y
-        n_batches = ceil((B * n_patches_per_item) / self.batch_size)
+        n_batches = ceil((B * n_patches_per_item) / self._batch_size)
 
         patched_batch = self.make_patches(batch, kernel_size, stride, n_patches_per_item,
                                           value_padding_H=value_padding_H, value_padding_W=value_padding_W)
 
         chunked_patch_values = [torch.chunk(value, n_batches, dim=0) for value in patched_batch.values()]
-        chunks = [dict(zip(patched_batch.keys(), values)) for values in zip(*chunked_patch_values)]
+        chunks = [dict(zip(patched_batch.keys(), values, strict=True)) for values in zip(*chunked_patch_values, strict=True)]
 
         chunked_preds = []
         for chunk in chunks:
             chunked_preds.append(model(chunk))
 
         patched_preds = {key: torch.cat([pred[key] for pred in chunked_preds], dim=0) for key in chunked_preds[0].keys()}
-        preds = self.reassemble_patches(patched_preds, patch_pixel_weights, kernel_size, stride, n_patches_per_item,
-                                       B, padded_H, padded_W, H, W)
-
-        return preds
+        return self.reassemble_patches(
+            patched_preds,
+            patch_pixel_weights,
+            kernel_size,
+            stride,
+            n_patches_per_item,
+            B,
+            padded_H,
+            padded_W,
+            H,
+            W,
+        )

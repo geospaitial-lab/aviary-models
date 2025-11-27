@@ -37,8 +37,6 @@ from aviary_models.sursentia.sliding_window_inference import SlidingWindowInfere
 if TYPE_CHECKING:
     from aviary import Tiles
 
-_PACKAGE = 'aviary-models'
-
 
 class Device(Enum):
     """
@@ -47,7 +45,7 @@ class Device(Enum):
         GPU: GPU device
     """
     CPU = 'cpu'
-    GPU = 'cuda'
+    GPU = 'gpu'
 
     def to_torch(self) -> torch.Device:
         """Converts the device to the torch device.
@@ -55,7 +53,11 @@ class Device(Enum):
         Returns:
             Torch device
         """
-        return torch.device(self.value)
+        mapping = {
+            Device.CPU: torch.device('cpu'),
+            Device.GPU: torch.device('cuda'),
+        }
+        return mapping[self]
 
 
 class SursentiaVersion(Enum):
@@ -192,7 +194,6 @@ class Sursentia:
         """
         try:
             import torch  # noqa: PLC0415
-            import xformers  # noqa: F401, PLC0415
             from huggingface_hub import hf_hub_download  # noqa: PLC0415
         except ImportError as error:
             message = (
@@ -222,8 +223,17 @@ class Sursentia:
             raise AviaryUserError(message)
 
         if self._device.type == 'cpu':
-            os.environ['XFORMERS_DISABLED'] = '1'
             self._dtype = torch.float32
+        else:
+            try:
+                import xformers  # noqa: F401, PLC0415
+            except ImportError as error:
+                message = (
+                    'Missing dependencies! '
+                    'To use Sursentia, you need to install the Sursentia dependency group '
+                    '(pip install geospaitial-lab-aviary-models[sursentia]) and torch.'
+                )
+                raise ImportError(message) from error
 
         torch.hub.set_dir(self._cache_dir_path)
 
@@ -244,7 +254,11 @@ class Sursentia:
                 filename=hf_hub_model_paths['landcover'],
                 local_dir=self._cache_dir_path,
             )
-            landcover_ckpt = torch.load(landcover_ckpt_path, weights_only=False)
+            landcover_ckpt = torch.load(
+                landcover_ckpt_path,
+                map_location=self._device,
+                weights_only=False,
+            )
 
         solar_ckpt = None
 
@@ -254,7 +268,11 @@ class Sursentia:
                 filename=hf_hub_model_paths['solar'],
                 local_dir=self._cache_dir_path,
             )
-            solar_ckpt = torch.load(solar_ckpt_path, weights_only=False)
+            solar_ckpt = torch.load(
+                solar_ckpt_path,
+                map_location=self._device,
+                weights_only=False,
+            )
 
         ckpt = landcover_ckpt if landcover_ckpt is not None else solar_ckpt
 
@@ -280,7 +298,6 @@ class Sursentia:
         self._sliding_window_inference = SlidingWindowInference(
             window_size=patch_size,
             batch_size=self._batch_size,
-            model_receptive_field=None,
             overlap=.5,
             downweight_edges=True,
         )
