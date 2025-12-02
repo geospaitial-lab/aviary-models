@@ -22,11 +22,12 @@ import torch
 
 
 class SlidingWindowInference:
+
     def __init__(
         self,
         window_size: int,
         batch_size: int,
-        overlap: float = 0.5,
+        overlap: float = .5,
         downweight_edges: bool = True,
     ) -> None:
         self._window_size = window_size
@@ -41,7 +42,7 @@ class SlidingWindowInference:
         B = H = W = device = None
 
         for value in batch.values():
-            if value.dim() == 4:
+            if value.dim() == 4:  # noqa: PLR2004
                 B, _, H, W = value.shape
                 device = value.device
                 break
@@ -61,17 +62,27 @@ class SlidingWindowInference:
         )
 
         if self._downweight_edges:
-            indices = torch.stack(torch.meshgrid(torch.arange(kernel_size,
-                                                              dtype=patch_pixel_weights.dtype,
-                                                              device=patch_pixel_weights.device),
-                                                 torch.arange(kernel_size,
-                                                              dtype=patch_pixel_weights.dtype,
-                                                              device=patch_pixel_weights.device), indexing='ij'))
+            indices = torch.stack(
+                torch.meshgrid(
+                    torch.arange(
+                        kernel_size,
+                        dtype=patch_pixel_weights.dtype,
+                        device=patch_pixel_weights.device,
+                    ),
+                    torch.arange(
+                        kernel_size,
+                        dtype=patch_pixel_weights.dtype,
+                        device=patch_pixel_weights.device,
+                    ),
+                    indexing='ij',
+                ),
+            )
 
             center_index = (kernel_size - 1) / 2
             distances = torch.maximum((indices[0] - center_index).abs(), (indices[1] - center_index).abs())
             patch_pixel_weights = (
-                        1 - (distances - distances.min()) / (distances.max() - distances.min()) * (1 - 1e-6))
+                1 - (distances - distances.min()) / (distances.max() - distances.min()) * (1 - 1e-6)
+            )
 
         return kernel_size, stride, patch_pixel_weights
 
@@ -106,15 +117,26 @@ class SlidingWindowInference:
         patched_batch = {}
 
         for key, value in batch.items():
-            if value.dim() == 4:
+            if value.dim() == 4:  # noqa: PLR2004
                 B, channels, _, _ = value.shape
                 dtype = value.dtype
+
                 if dtype == torch.int32:
-                    value = value.view(torch.float32)
-                value = torch.nn.functional.pad(value, (0, value_padding_W, 0, value_padding_H))
-                unfolded = torch.nn.functional.unfold(value, kernel_size=kernel_size, stride=stride)
+                    value = value.view(torch.float32)  # noqa: PLW2901
+
+                value = torch.nn.functional.pad(  # noqa: PLW2901
+                    input=value,
+                    pad=(0, value_padding_W, 0, value_padding_H),
+                )
+                unfolded = torch.nn.functional.unfold(
+                    input=value,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                )
+
                 if dtype == torch.int32:
                     unfolded = unfolded.view(torch.int32)
+
                 patches = unfolded.reshape(B, channels, kernel_size, kernel_size, n_patches_per_item).moveaxis(-1, 1)
                 patches = patches.reshape(B * n_patches_per_item, channels, kernel_size, kernel_size)
             else:
@@ -147,15 +169,19 @@ class SlidingWindowInference:
             unfolded_value = unfolded_value.reshape(B, value.shape[1] * kernel_size * kernel_size, n_patches_per_item)
 
             unfolded_value = unfolded_value * pixel_weights
-            divisor = torch.nn.functional.fold(pixel_weights,
-                                               output_size=(padded_H, padded_W),
-                                               kernel_size=kernel_size,
-                                               stride=stride)
+            divisor = torch.nn.functional.fold(
+                input=pixel_weights,
+                output_size=(padded_H, padded_W),
+                kernel_size=kernel_size,
+                stride=stride,
+            )
 
-            refolded_value = torch.nn.functional.fold(unfolded_value,
-                                                      output_size=(padded_H, padded_W),
-                                                      kernel_size=kernel_size,
-                                                      stride=stride)
+            refolded_value = torch.nn.functional.fold(
+                input=unfolded_value,
+                output_size=(padded_H, padded_W),
+                kernel_size=kernel_size,
+                stride=stride,
+            )
 
             final_value = refolded_value / divisor
             pred[key] = final_value[:, :, :H, :W]
@@ -171,36 +197,55 @@ class SlidingWindowInference:
 
         kernel_size, init_stride, patch_pixel_weights = self.get_sliding_window_params(device)
 
-        stride, padded_H, padded_W, n_patches_y, n_patches_x = self.align_sliding_window_params(H,
-                                                                                                W,
-                                                                                                kernel_size,
-                                                                                                init_stride)
+        stride, padded_H, padded_W, n_patches_y, n_patches_x = self.align_sliding_window_params(
+            H=H,
+            W=W,
+            kernel_size=kernel_size,
+            init_stride=init_stride,
+        )
         value_padding_H = padded_H - H
         value_padding_W = padded_W - W
 
         n_patches_per_item = n_patches_x * n_patches_y
         n_batches = ceil((B * n_patches_per_item) / self._batch_size)
 
-        patched_batch = self.make_patches(batch, kernel_size, stride, n_patches_per_item,
-                                          value_padding_H=value_padding_H, value_padding_W=value_padding_W)
+        patched_batch = self.make_patches(
+            batch=batch,
+            kernel_size=kernel_size,
+            stride=stride,
+            n_patches_per_item=n_patches_per_item,
+            value_padding_H=value_padding_H,
+            value_padding_W=value_padding_W,
+        )
 
-        chunked_patch_values = [torch.chunk(value, n_batches, dim=0) for value in patched_batch.values()]
-        chunks = [dict(zip(patched_batch.keys(), values, strict=True)) for values in zip(*chunked_patch_values, strict=True)]
+        chunked_patch_values = [
+            torch.chunk(value, n_batches, dim=0)
+            for value in patched_batch.values()
+        ]
+        chunks = [
+            dict(zip(patched_batch.keys(), values, strict=True))
+            for values in zip(*chunked_patch_values, strict=True)
+        ]
 
         chunked_preds = []
-        for chunk in chunks:
-            chunked_preds.append(model(chunk))
 
-        patched_preds = {key: torch.cat([pred[key] for pred in chunked_preds], dim=0) for key in chunked_preds[0].keys()}
+        for chunk in chunks:
+            chunked_preds.append(model(chunk))  # noqa: PERF401
+
+        patched_preds = {
+            key: torch.cat([pred[key] for pred in chunked_preds], dim=0)
+            for key in chunked_preds[0]
+        }
+
         return self.reassemble_patches(
-            patched_preds,
-            patch_pixel_weights,
-            kernel_size,
-            stride,
-            n_patches_per_item,
-            B,
-            padded_H,
-            padded_W,
-            H,
-            W,
+            preds=patched_preds,
+            patch_pixel_weights=patch_pixel_weights,
+            kernel_size=kernel_size,
+            stride=stride,
+            n_patches_per_item=n_patches_per_item,
+            B=B,
+            padded_H=padded_H,
+            padded_W=padded_W,
+            H=H,
+            W=W,
         )
