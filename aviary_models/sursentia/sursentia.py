@@ -141,11 +141,11 @@ class Sursentia:
     """Tiles processor that uses the Sursentia model to predict landcover and solar panels.
 
     Model input channels:
-        - `ChannelName.R`: Red channel, raster channel, ground sampling distance of 0.1 to 1.0 meters,
+        - `ChannelName.R`: Red channel, raster channel, ground sampling distance of 0.1 to 0.5 meters per pixel,
             standardized values with a mean of 0.392 and a standard deviation of 0.198
-        - `ChannelName.G`: Green channel, raster channel, ground sampling distance of 0.1 to 1.0 meters,
+        - `ChannelName.G`: Green channel, raster channel, ground sampling distance of 0.1 to 0.5 meters per pixel,
             standardized values with a mean of 0.423 and a standard deviation of 0.173
-        - `ChannelName.B`: Blue channel, raster channel, ground sampling distance of 0.1 to 1.0 meters,
+        - `ChannelName.B`: Blue channel, raster channel, ground sampling distance of 0.1 to 0.5 meters per pixel,
             standardized values with a mean of 0.373 and a standard deviation of 0.157.
         - Use the `SursentiaPreprocessor` to preprocess the input channels
 
