@@ -18,6 +18,8 @@ from .sursentia.sursentia import (
     Device,
     Sursentia,
     SursentiaConfig,
+    SursentiaPreprocessor,
+    SursentiaPreprocessorConfig,
     SursentiaVersion,
 )
 
@@ -25,6 +27,8 @@ __all__ = [
     'Device',
     'Sursentia',
     'SursentiaConfig',
+    'SursentiaPreprocessor',
+    'SursentiaPreprocessorConfig',
     'SursentiaVersion',
     '__version__',
 ]

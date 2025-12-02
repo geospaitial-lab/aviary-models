@@ -14,6 +14,14 @@
 
 ---
 
+::: aviary_models.SursentiaPreprocessor
+
+---
+
+::: aviary_models.SursentiaPreprocessorConfig
+
+---
+
 ::: aviary_models.Device
     options:
       filters:

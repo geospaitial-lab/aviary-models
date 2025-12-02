@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import os
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -29,7 +28,12 @@ from aviary import (
     ChannelName,
     RasterChannel,
 )
-from aviary.tile import register_tiles_processor
+from aviary.tile import (
+    NormalizeProcessor,
+    SequentialCompositeProcessor,
+    StandardizeProcessor,
+    register_tiles_processor,
+)
 
 from aviary_models.sursentia.model import DINOUperNet
 from aviary_models.sursentia.sliding_window_inference import SlidingWindowInference
@@ -81,7 +85,7 @@ class SursentiaConfig(pydantic.BaseModel):
         You can create the configuration from a config file.
 
         ``` yaml title="config.yaml"
-        package: 'aviary-models'
+        package: 'aviary_models'
         name: 'Sursentia'
         config:
           r_channel_name: 'r'
@@ -143,6 +147,7 @@ class Sursentia:
             standardized values with a mean of 0.423 and a standard deviation of 0.173
         - `ChannelName.B`: Blue channel, raster channel, ground sampling distance of 0.1 to 1.0 meters,
             standardized values with a mean of 0.373 and a standard deviation of 0.157.
+        - Use the `SursentiaPreprocessor` to preprocess the input channels
 
     Model output channels:
         - 'sursentia_landcover': Landcover channel, raster channel, ground sampling distance of the input channels,
@@ -152,7 +157,7 @@ class Sursentia:
             the values are 0 (background) and 1 (solar panels)
 
     Additional dependencies:
-        Sursentia requires the `sursentia` dependency group and `torch`.
+        Sursentia requires the `sursentia` dependency group, `torch`, and `xformers` (only for GPU inference).
 
     Implements the `TilesProcessor` protocol.
     """
@@ -164,7 +169,7 @@ class Sursentia:
     }
     _HF_HUB_REPO = 'geospaitial-lab/sursentia'
 
-    def __init__(
+    def __init__(  # noqa: PLR0915
         self,
         r_channel_name: ChannelName | str = ChannelName.R,
         g_channel_name: ChannelName | str = ChannelName.G,
@@ -370,3 +375,177 @@ class Sursentia:
             )
 
         return tiles
+
+
+class SursentiaPreprocessorConfig(pydantic.BaseModel):
+    """Configuration for the `from_config` class method of `SursentiaPreprocessor`
+
+    Create the configuration from a config file:
+        - Use null instead of None
+
+    Example:
+        You can create the configuration from a config file.
+
+        ``` yaml title="config.yaml"
+        package: 'aviary_models'
+        name: 'SursentiaPreprocessor'
+        config:
+          r_channel_name: 'r'
+          g_channel_name: 'g'
+          b_channel_name: 'b'
+          new_r_channel_name: null
+          new_g_channel_name: null
+          new_b_channel_name: null
+          max_num_threads: null
+        ```
+
+    Attributes:
+        r_channel_name: Channel name of the red channel -
+            defaults to `ChannelName.R`
+        g_channel_name: Channel name of the green channel -
+            defaults to `ChannelName.G`
+        b_channel_name: Channel name of the blue channel -
+            defaults to `ChannelName.B`
+        new_r_channel_name: New channel name of the red channel -
+            defaults to None
+        new_g_channel_name: New channel name of the green channel -
+            defaults to None
+        new_b_channel_name: New channel name of the blue channel -
+            defaults to None
+        max_num_threads: Maximum number of threads -
+            defaults to None
+    """
+    r_channel_name: ChannelName | str = ChannelName.R
+    g_channel_name: ChannelName | str = ChannelName.G
+    b_channel_name: ChannelName | str = ChannelName.B
+    new_r_channel_name: ChannelName | str | None = None
+    new_g_channel_name: ChannelName | str | None = None
+    new_b_channel_name: ChannelName | str | None = None
+    max_num_threads: int | None = None
+
+
+@register_tiles_processor(config_class=SursentiaPreprocessorConfig)
+class SursentiaPreprocessor:
+    """Tiles processor that preprocesses the input channels of the Sursentia model.
+
+    Implements the `TilesProcessor` protocol.
+    """
+    _MIN_VALUE = 0.
+    _MAX_VALUE = 255.
+    _R_MEAN_VALUE = .392
+    _G_MEAN_VALUE = .423
+    _B_MEAN_VALUE = .373
+    _R_STD_VALUE = .198
+    _G_STD_VALUE = .173
+    _B_STD_VALUE = .157
+
+    def __init__(
+        self,
+        r_channel_name: ChannelName | str = ChannelName.R,
+        g_channel_name: ChannelName | str = ChannelName.G,
+        b_channel_name: ChannelName | str = ChannelName.B,
+        new_r_channel_name: ChannelName | str | None = None,
+        new_g_channel_name: ChannelName | str | None = None,
+        new_b_channel_name: ChannelName | str | None = None,
+        max_num_threads: int | None = None,
+    ) -> None:
+        """
+        Parameters:
+            r_channel_name: Channel name of the red channel
+            g_channel_name: Channel name of the green channel
+            b_channel_name: Channel name of the blue channel
+            new_r_channel_name: New channel name of the red channel
+            new_g_channel_name: New channel name of the green channel
+            new_b_channel_name: New channel name of the blue channel
+            max_num_threads: Maximum number of threads
+        """
+        self._r_channel_name = r_channel_name
+        self._g_channel_name = g_channel_name
+        self._b_channel_name = b_channel_name
+        self._new_r_channel_name = new_r_channel_name
+        self._new_g_channel_name = new_g_channel_name
+        self._new_b_channel_name = new_b_channel_name
+        self._max_num_threads = max_num_threads
+
+        self._r_normalize_processor = NormalizeProcessor(
+            channel_name=self._r_channel_name,
+            min_value=self._MIN_VALUE,
+            max_value=self._MAX_VALUE,
+            new_channel_name=self._new_r_channel_name,
+            max_num_threads=self._max_num_threads,
+        )
+        self._g_normalize_processor = NormalizeProcessor(
+            channel_name=self._g_channel_name,
+            min_value=self._MIN_VALUE,
+            max_value=self._MAX_VALUE,
+            new_channel_name=self._new_g_channel_name,
+            max_num_threads=self._max_num_threads,
+        )
+        self._b_normalize_processor = NormalizeProcessor(
+            channel_name=self._b_channel_name,
+            min_value=self._MIN_VALUE,
+            max_value=self._MAX_VALUE,
+            new_channel_name=self._new_b_channel_name,
+            max_num_threads=self._max_num_threads,
+        )
+        self._r_standardize_processor = StandardizeProcessor(
+            channel_name=self._new_r_channel_name if self._new_r_channel_name is not None else self._r_channel_name,
+            mean_value=self._R_MEAN_VALUE,
+            std_value=self._R_STD_VALUE,
+            new_channel_name=self._new_r_channel_name,
+            max_num_threads=self._max_num_threads,
+        )
+        self._g_standardize_processor = StandardizeProcessor(
+            channel_name=self._new_g_channel_name if self._new_g_channel_name is not None else self._g_channel_name,
+            mean_value=self._G_MEAN_VALUE,
+            std_value=self._G_STD_VALUE,
+            new_channel_name=self._new_g_channel_name,
+            max_num_threads=self._max_num_threads,
+        )
+        self._b_standardize_processor = StandardizeProcessor(
+            channel_name=self._new_b_channel_name if self._new_b_channel_name is not None else self._b_channel_name,
+            mean_value=self._B_MEAN_VALUE,
+            std_value=self._B_STD_VALUE,
+            new_channel_name=self._new_b_channel_name,
+            max_num_threads=self._max_num_threads,
+        )
+        self._sursentia_preprocessor = SequentialCompositeProcessor(
+            tiles_processors=[
+                self._r_normalize_processor,
+                self._g_normalize_processor,
+                self._b_normalize_processor,
+                self._r_standardize_processor,
+                self._g_standardize_processor,
+                self._b_standardize_processor,
+            ],
+        )
+
+    @classmethod
+    def from_config(
+        cls,
+        config: SursentiaPreprocessorConfig,
+    ) -> SursentiaPreprocessor:
+        """Creates a sursentia preprocessor from the configuration.
+
+        Parameters:
+            config: Configuration
+
+        Returns:
+            Sursentia preprocessor
+        """
+        config = config.model_dump()
+        return cls(**config)
+
+    def __call__(
+        self,
+        tiles: Tiles,
+    ) -> Tiles:
+        """Preprocesses the input channels.
+
+        Parameters:
+            tiles: Tiles
+
+        Returns:
+            Tiles
+        """
+        return self._sursentia_preprocessor(tiles=tiles)
