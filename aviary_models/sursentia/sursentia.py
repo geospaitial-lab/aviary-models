@@ -157,7 +157,8 @@ class Sursentia:
             the values are 0 (background) and 1 (solar panels)
 
     Additional dependencies:
-        Sursentia requires the `sursentia` dependency group, `torch`, and `xformers` (only for GPU inference).
+        Sursentia requires the `sursentia` dependency group and `torch`.
+        `xformers` is required for GPU inference.
 
     Implements the `TilesProcessor` protocol.
     """
