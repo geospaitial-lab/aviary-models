@@ -40,7 +40,7 @@
 aviary-models is a plugin package containing models for [aviary].
 
 | Name      | Description                         | Input Channels             | Docs        |
-|-----------|-------------------------------------|----------------------------|-------------|
+|:----------|:------------------------------------|:---------------------------|:------------|
 | Sursentia | Predicts landcover and solar panels | R, G, B (0.1 to 0.5 m/px)  | [Sursentia] |
 
   [aviary]: https://github.com/geospaitial-lab/aviary
