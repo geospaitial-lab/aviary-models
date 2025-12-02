@@ -25,6 +25,7 @@ warnings.filterwarnings('ignore', message='xFormers')
 
 
 class PyramidRescaler(torch.nn.Module):
+
     def __init__(
         self,
         num_channels: int,
@@ -69,7 +70,7 @@ class PyramidRescaler(torch.nn.Module):
 
             if n_steps < 0:
                 for _ in range(-n_steps):
-                    step_operations.append(
+                    step_operations.append(  # noqa: PERF401
                         torch.nn.MaxPool2d(
                             kernel_size=2,
                             stride=2,
@@ -90,6 +91,7 @@ class PyramidRescaler(torch.nn.Module):
 
 
 class PPM(torch.nn.Module):
+
     def __init__(
         self,
         num_channels_in: int,
@@ -104,16 +106,24 @@ class PPM(torch.nn.Module):
         for scale in pooling_scales:
             self.pooling_blocks.append(torch.nn.Sequential(
                 torch.nn.AdaptiveAvgPool2d(scale),
-                torch.nn.Conv2d(num_channels_in, num_channels_out, kernel_size=1, bias=False),
+                torch.nn.Conv2d(
+                    in_channels=num_channels_in,
+                    out_channels=num_channels_out,
+                    kernel_size=1,
+                    bias=False,
+                ),
                 torch.nn.BatchNorm2d(num_channels_out),
                 torch.nn.ReLU(),
             ))
 
         self.conv_block = torch.nn.Sequential(
-            torch.nn.Conv2d(num_channels_in + len(pooling_scales) * num_channels_out, num_channels_out,
-                            kernel_size=3,
-                            padding='same',
-                            bias=False),
+            torch.nn.Conv2d(
+                in_channels=num_channels_in + len(pooling_scales) * num_channels_out,
+                out_channels=num_channels_out,
+                kernel_size=3,
+                padding='same',
+                bias=False,
+            ),
             torch.nn.BatchNorm2d(num_channels_out),
             torch.nn.ReLU(),
             torch.nn.Dropout2d(dropout_rate),
@@ -123,16 +133,21 @@ class PPM(torch.nn.Module):
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
-        pooled_x = [torch.nn.functional.interpolate(pooling_block(x),
-                                                    size=x.shape[2:],
-                                                    mode='bilinear',
-                                                    align_corners=False)
-                    for pooling_block in self.pooling_blocks]
+        pooled_x = [
+            torch.nn.functional.interpolate(
+                input=pooling_block(x),
+                size=x.shape[2:],
+                mode='bilinear',
+                align_corners=False,
+            )
+            for pooling_block in self.pooling_blocks
+        ]
 
         return self.conv_block(torch.cat([x, *pooled_x], dim=1))
 
 
 class FPNBlock(torch.nn.Module):
+
     def __init__(
         self,
         num_channels_in: int,
@@ -141,12 +156,23 @@ class FPNBlock(torch.nn.Module):
         super().__init__()
 
         self.lateral_connection = torch.nn.Sequential(
-            torch.nn.Conv2d(num_channels_in, num_channels_out, kernel_size=1, bias=False),
+            torch.nn.Conv2d(
+                in_channels=num_channels_in,
+                out_channels=num_channels_out,
+                kernel_size=1,
+                bias=False,
+            ),
             torch.nn.BatchNorm2d(num_channels_out),
             torch.nn.ReLU(),
         )
         self.conv_block = torch.nn.Sequential(
-            torch.nn.Conv2d(num_channels_out, num_channels_out, kernel_size=3, padding='same', bias=False),
+            torch.nn.Conv2d(
+                in_channels=num_channels_out,
+                out_channels=num_channels_out,
+                kernel_size=3,
+                padding='same',
+                bias=False,
+            ),
             torch.nn.BatchNorm2d(num_channels_out),
             torch.nn.ReLU(),
         )
@@ -157,16 +183,19 @@ class FPNBlock(torch.nn.Module):
         top_down_input: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         lateral_connection = self.lateral_connection(lateral_input)
-        top_down_connection = torch.nn.functional.interpolate(top_down_input,
-                                                              size=lateral_connection.shape[2:],
-                                                              mode='bilinear',
-                                                              align_corners=False)
+        top_down_connection = torch.nn.functional.interpolate(
+            input=top_down_input,
+            size=lateral_connection.shape[2:],
+            mode='bilinear',
+            align_corners=False,
+        )
         top_down_output = lateral_connection + top_down_connection
         feature_map_output = self.conv_block(top_down_output)
         return top_down_output, feature_map_output
 
 
 class FPN(torch.nn.Module):
+
     def __init__(
         self,
         num_channels_in: int,
@@ -178,16 +207,33 @@ class FPN(torch.nn.Module):
         super().__init__()
 
         if ppm_scales is not None:
-            self.top_path = PPM(num_channels_in, num_channels_out, ppm_scales, dropout_rate=dropout_rate)
+            self.top_path = PPM(
+                num_channels_in=num_channels_in,
+                num_channels_out=num_channels_out,
+                pooling_scales=ppm_scales,
+                dropout_rate=dropout_rate,
+            )
         else:
             self.top_path = torch.nn.Sequential(
-                torch.nn.Conv2d(num_channels_in, num_channels_out, kernel_size=1, bias=False),
+                torch.nn.Conv2d(
+                    in_channels=num_channels_in,
+                    out_channels=num_channels_out,
+                    kernel_size=1,
+                    bias=False,
+                ),
                 torch.nn.BatchNorm2d(num_channels_out),
                 torch.nn.ReLU(),
             )
 
-        self.fpn_blocks = torch.nn.ModuleList([FPNBlock(num_channels_in, num_channels_out)
-                                               for _ in range(num_levels - 1)])
+        self.fpn_blocks = torch.nn.ModuleList(
+            [
+                FPNBlock(
+                    num_channels_in=num_channels_in,
+                    num_channels_out=num_channels_out,
+                )
+                for _ in range(num_levels - 1)
+            ],
+        )
 
     def forward(
         self,
@@ -205,6 +251,7 @@ class FPN(torch.nn.Module):
 
 
 class FuseBlock(torch.nn.Module):
+
     def __init__(
         self,
         num_channels: int,
@@ -214,7 +261,13 @@ class FuseBlock(torch.nn.Module):
         super().__init__()
 
         self.conv_block = torch.nn.Sequential(
-            torch.nn.Conv2d(num_channels * num_layers, num_channels, kernel_size=3, padding='same', bias=False),
+            torch.nn.Conv2d(
+                in_channels=num_channels * num_layers,
+                out_channels=num_channels,
+                kernel_size=3,
+                padding='same',
+                bias=False,
+            ),
             torch.nn.BatchNorm2d(num_channels),
             torch.nn.ReLU(),
             torch.nn.Dropout2d(dropout_rate),
@@ -226,16 +279,22 @@ class FuseBlock(torch.nn.Module):
     ) -> torch.Tensor:
         target_size = inputs[-1].shape[2:]
         scaled_features = [inputs[-1]]
+
         for feature_map in reversed(inputs[:-1]):
-            scaled_features.append(torch.nn.functional.interpolate(feature_map,
-                                                                   size=target_size,
-                                                                   mode='bilinear',
-                                                                   align_corners=False))
+            scaled_features.append(  # noqa: PERF401
+                torch.nn.functional.interpolate(
+                    input=feature_map,
+                    size=target_size,
+                    mode='bilinear',
+                    align_corners=False,
+                ),
+            )
 
         return self.conv_block(torch.cat(scaled_features, dim=1))
 
 
 class UPerNet(torch.nn.Module):
+
     def __init__(
         self,
         num_backbone_features: int,
@@ -250,14 +309,18 @@ class UPerNet(torch.nn.Module):
         self.intermediate_layers = intermediate_layers
 
         self.pyramid_rescaler = PyramidRescaler(num_channels=num_backbone_features, scales=pyramid_scales)
-        self.fpn = FPN(num_channels_in=num_backbone_features,
-                       num_channels_out=num_channels_fpn,
-                       num_levels=len(intermediate_layers),
-                       ppm_scales=ppm_scales,
-                       dropout_rate=0.0)
-        self.fuse_block = FuseBlock(num_channels=num_channels_fpn,
-                                    num_layers=len(intermediate_layers),
-                                    dropout_rate=0.0)
+        self.fpn = FPN(
+            num_channels_in=num_backbone_features,
+            num_channels_out=num_channels_fpn,
+            num_levels=len(intermediate_layers),
+            ppm_scales=ppm_scales,
+            dropout_rate=0.,
+        )
+        self.fuse_block = FuseBlock(
+            num_channels=num_channels_fpn,
+            num_layers=len(intermediate_layers),
+            dropout_rate=0.,
+        )
 
         self.class_head = torch.nn.Conv2d(num_channels_fpn, num_classes, kernel_size=1)
 
@@ -273,6 +336,7 @@ class UPerNet(torch.nn.Module):
 
 
 class DINOUperNet(torch.nn.Module):
+
     def __init__(
         self,
         backbone_name: str,
@@ -287,6 +351,7 @@ class DINOUperNet(torch.nn.Module):
 
         self.intermediate_layers = None
         self._landcover_upernet = None
+
         if landcover_ckpt is not None:
             hyperparameters = landcover_ckpt['hyperparameters']
             self._landcover_upernet = UPerNet(
@@ -338,7 +403,7 @@ class DINOUperNet(torch.nn.Module):
             if self._landcover_upernet is not None:
                 landcover_logits = self._landcover_upernet(features)
                 landcover_logits = torch.nn.functional.interpolate(
-                    landcover_logits,
+                    input=landcover_logits,
                     size=(H, W),
                     mode='bilinear',
                     align_corners=False,
@@ -348,7 +413,7 @@ class DINOUperNet(torch.nn.Module):
             if self._solar_upernet is not None:
                 solar_logits = self._solar_upernet(features)
                 solar_logits = torch.nn.functional.interpolate(
-                    solar_logits,
+                    input=solar_logits,
                     size=(H, W),
                     mode='bilinear',
                     align_corners=False,
