@@ -30,14 +30,18 @@ from aviary import (
 )
 from aviary.tile import (
     NormalizeProcessor,
-    SequentialCompositeProcessor as SequentialCompositeTilesProcessor,
     StandardizeProcessor,
     register_tiles_processor,
 )
+from aviary.tile import (
+    SequentialCompositeProcessor as SequentialCompositeTilesProcessor,
+)
 from aviary.vector import (
     MapFieldProcessor,
-    SequentialCompositeProcessor as SequentialCompositeVectorProcessor,
     register_vector_processor,
+)
+from aviary.vector import (
+    SequentialCompositeProcessor as SequentialCompositeVectorProcessor,
 )
 
 from aviary_models.sursentia.model import DINOUperNet
