@@ -61,6 +61,8 @@ Each model has its own dependency group and additional dependencies.
 pip install geospaitial-lab-aviary-models
 ```
 
+Note that aviary and aviary-models require Python 3.10 or later.
+
 ### Installation with uv
 
 ```
