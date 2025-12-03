@@ -22,6 +22,13 @@
 
 ---
 
+::: aviary_models.SursentiaMapFieldProcessor
+
+---
+
+::: aviary_models.SursentiaMapFieldProcessorConfig
+
+---
 ::: aviary_models.Device
     options:
       filters:

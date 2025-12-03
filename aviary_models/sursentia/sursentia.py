@@ -30,16 +30,28 @@ from aviary import (
 )
 from aviary.tile import (
     NormalizeProcessor,
-    SequentialCompositeProcessor,
     StandardizeProcessor,
     register_tiles_processor,
+)
+from aviary.tile import (
+    SequentialCompositeProcessor as SequentialCompositeTilesProcessor,
+)
+from aviary.vector import (
+    MapFieldProcessor,
+    register_vector_processor,
+)
+from aviary.vector import (
+    SequentialCompositeProcessor as SequentialCompositeVectorProcessor,
 )
 
 from aviary_models.sursentia.model import DINOUperNet
 from aviary_models.sursentia.sliding_window_inference import SlidingWindowInference
 
 if TYPE_CHECKING:
-    from aviary import Tiles
+    from aviary import (
+        Tiles,
+        Vector,
+    )
 
 
 class Device(Enum):
@@ -146,7 +158,7 @@ class Sursentia:
         - `ChannelName.G`: Green channel, raster channel, ground sampling distance of 0.1 to 0.5 meters per pixel,
             standardized values with a mean of 0.423 and a standard deviation of 0.173
         - `ChannelName.B`: Blue channel, raster channel, ground sampling distance of 0.1 to 0.5 meters per pixel,
-            standardized values with a mean of 0.373 and a standard deviation of 0.157.
+            standardized values with a mean of 0.373 and a standard deviation of 0.157
         - Use the `SursentiaPreprocessor` to preprocess the input channels
 
     Model output channels:
@@ -510,7 +522,7 @@ class SursentiaPreprocessor:
             new_channel_name=self._new_b_channel_name,
             max_num_threads=self._max_num_threads,
         )
-        self._sursentia_preprocessor = SequentialCompositeProcessor(
+        self._sursentia_preprocessor = SequentialCompositeTilesProcessor(
             tiles_processors=[
                 self._r_normalize_processor,
                 self._g_normalize_processor,
@@ -550,3 +562,145 @@ class SursentiaPreprocessor:
             Tiles
         """
         return self._sursentia_preprocessor(tiles=tiles)
+
+
+class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
+    """Configuration for the `from_config` class method of `SursentiaMapFieldProcessor`
+
+    Create the configuration from a config file:
+        - Use null instead of None
+
+    Example:
+        You can create the configuration from a config file.
+
+        ``` yaml title="config.yaml"
+        package: 'aviary_models'
+        name: 'SursentiaMapFieldProcessor'
+        config:
+          field: 'my_field'
+          landcover_layer_name: 'sursentia_landcover'
+          solar_layer_name: 'sursentia_solar'
+          new_landcover_layer_name: null
+          new_solar_layer_name: null
+        ```
+
+    Attributes:
+        field: Field
+        landcover_layer_name: Layer name of the landcover layer (if None, the landcover layer is not used) -
+            defaults to 'sursentia_landcover'
+        solar_layer_name: Layer name of the solar layer (if None, the solar layer is not used) -
+            defaults to 'sursentia_solar'
+        new_landcover_layer_name: New layer name of the landcover layer -
+            defaults to None
+        new_solar_layer_name: New layer name of the solar layer -
+            defaults to None
+    """
+    field: str
+    landcover_layer_name: str | None = 'sursentia_landcover'
+    solar_layer_name: str | None = 'sursentia_solar'
+    new_landcover_layer_name: str | None = None
+    new_solar_layer_name: str | None = None
+
+
+@register_vector_processor(config_class=SursentiaMapFieldProcessorConfig)
+class SursentiaMapFieldProcessor:
+    """Vector processor that maps the fields of the layers of the Sursentia model.
+
+    Implements the `VectorProcessor` protocol.
+    """
+    _LANDCOVER_MAPPING = {  # noqa: RUF012
+        0: 'Gebäude',
+        1: 'Gründach',
+        2: 'versiegelte Fläche',
+        3: 'nicht versiegelte Fläche',
+        4: 'Gewässer',
+    }
+    _SOLAR_MAPPING = {  # noqa: RUF012
+        0: 'Hintergrund',
+        1: 'Solaranlage',
+    }
+
+    def __init__(
+        self,
+        field: str,
+        landcover_layer_name: str | None = 'sursentia_landcover',
+        solar_layer_name: str | None = 'sursentia_solar',
+        new_landcover_layer_name: str | None = None,
+        new_solar_layer_name: str | None = None,
+    ) -> None:
+        """
+        Parameters:
+            field: Field
+            landcover_layer_name: Layer name of the landcover layer (if None, the landcover layer is not used)
+            solar_layer_name: Layer name of the solar layer (if None, the solar layer is not used)
+            new_landcover_layer_name: New layer name of the landcover layer
+            new_solar_layer_name: New layer name of the solar layer
+        """
+        self._field = field
+        self._landcover_layer_name = landcover_layer_name
+        self._solar_layer_name = solar_layer_name
+        self._new_landcover_layer_name = new_landcover_layer_name
+        self._new_solar_layer_name = new_solar_layer_name
+
+        if self._landcover_layer_name is None and self._solar_layer_name is None:
+            message = (
+                'Invalid landcover_layer_name / solar_layer_name! '
+                'At least one of the layer names must be specified.'
+            )
+            raise AviaryUserError(message)
+
+        vector_processors = []
+
+        if self._landcover_layer_name is not None:
+            vector_processors.append(
+                MapFieldProcessor(
+                    layer_name=self._landcover_layer_name,
+                    field=self._field,
+                    mapping=self._LANDCOVER_MAPPING,
+                    new_layer_name=self._new_landcover_layer_name,
+                ),
+            )
+
+        if self._solar_layer_name is not None:
+            vector_processors.append(
+                MapFieldProcessor(
+                    layer_name=self._solar_layer_name,
+                    field=self._field,
+                    mapping=self._SOLAR_MAPPING,
+                    new_layer_name=self._new_solar_layer_name,
+                ),
+            )
+
+        self._sursentia_map_field_processor = SequentialCompositeVectorProcessor(
+            vector_processors=vector_processors,
+        )
+
+    @classmethod
+    def from_config(
+        cls,
+        config: SursentiaMapFieldProcessorConfig,
+    ) -> SursentiaMapFieldProcessor:
+        """Creates a sursentia map field processor from the configuration.
+
+        Parameters:
+            config: Configuration
+
+        Returns:
+            Sursentia map field processor
+        """
+        config = config.model_dump()
+        return cls(**config)
+
+    def __call__(
+        self,
+        vector: Vector,
+    ) -> Vector:
+        """Maps the fields of the layers.
+
+        Parameters:
+            vector: Vector
+
+        Returns:
+            Vector
+        """
+        return self._sursentia_map_field_processor(vector=vector)
