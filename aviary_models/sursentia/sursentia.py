@@ -167,6 +167,7 @@ class Sursentia:
             3 (non-impervious surfaces), and 4 (water bodies)
         - 'sursentia_solar': Solar panels channel, raster channel, ground sampling distance of the input channels,
             the values are 0 (background) and 1 (solar panels)
+        - Use the `SursentiaMapFieldProcessor` to map the fields of the layers
 
     Additional dependencies:
         Sursentia requires the `sursentia` dependency group and `torch`.
@@ -605,6 +606,17 @@ class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
 @register_vector_processor(config_class=SursentiaMapFieldProcessorConfig)
 class SursentiaMapFieldProcessor:
     """Vector processor that maps the fields of the layers of the Sursentia model.
+
+    Landcover mapping:
+        - 0: 'Gebäude'
+        - 1: 'Gründach'
+        - 2: 'versiegelte Fläche'
+        - 3: 'nicht versiegelte Fläche'
+        - 4: 'Gewässer'
+
+    Solar mapping:
+        - 0: 'Hintergrund'
+        - 1: 'Solaranlage'
 
     Implements the `VectorProcessor` protocol.
     """
