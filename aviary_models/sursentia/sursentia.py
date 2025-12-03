@@ -167,7 +167,7 @@ class Sursentia:
             3 (non-impervious surfaces), and 4 (water bodies)
         - 'sursentia_solar': Solar panels channel, raster channel, ground sampling distance of the input channels,
             the values are 0 (background) and 1 (solar panels)
-        - Use the `SursentiaMapFieldProcessor` to map the field of the layers
+        - Use the `SursentiaMapFieldProcessor` to map the fields of the layers
 
     Additional dependencies:
         Sursentia requires the `sursentia` dependency group and `torch`.
