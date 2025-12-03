@@ -139,8 +139,8 @@ class SursentiaConfig(pydantic.BaseModel):
     r_channel_name: ChannelName | str = ChannelName.R
     g_channel_name: ChannelName | str = ChannelName.G
     b_channel_name: ChannelName | str = ChannelName.B
-    landcover_channel_name: str = 'sursentia_landcover'
-    solar_channel_name: str = 'sursentia_solar'
+    landcover_channel_name: str | None = 'sursentia_landcover'
+    solar_channel_name: str | None = 'sursentia_solar'
     batch_size: int = 1
     version: SursentiaVersion = SursentiaVersion.V1_0
     device: Device = Device.CPU
