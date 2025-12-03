@@ -607,14 +607,14 @@ class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
 class SursentiaMapFieldProcessor:
     """Vector processor that maps the fields of the layers of the Sursentia model.
 
-    Mapping:
-    - Landcover:
+    Landcover mapping:
         - 0: 'Gebäude'
         - 1: 'Gründach'
         - 2: 'versiegelte Fläche'
         - 3: 'nicht versiegelte Fläche'
         - 4: 'Gewässer'
-    - Solar:
+
+    Solar mapping:
         - 0: 'Hintergrund'
         - 1: 'Solaranlage'
 
