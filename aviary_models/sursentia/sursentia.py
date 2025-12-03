@@ -146,7 +146,7 @@ class Sursentia:
         - `ChannelName.G`: Green channel, raster channel, ground sampling distance of 0.1 to 0.5 meters per pixel,
             standardized values with a mean of 0.423 and a standard deviation of 0.173
         - `ChannelName.B`: Blue channel, raster channel, ground sampling distance of 0.1 to 0.5 meters per pixel,
-            standardized values with a mean of 0.373 and a standard deviation of 0.157.
+            standardized values with a mean of 0.373 and a standard deviation of 0.157
         - Use the `SursentiaPreprocessor` to preprocess the input channels
 
     Model output channels:
@@ -550,3 +550,41 @@ class SursentiaPreprocessor:
             Tiles
         """
         return self._sursentia_preprocessor(tiles=tiles)
+
+
+class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
+    """Configuration for the `from_config` class method of `SursentiaMapFieldProcessor`
+
+    Create the configuration from a config file:
+        - Use null instead of None
+
+    Example:
+        You can create the configuration from a config file.
+
+        ``` yaml title="config.yaml"
+        package: 'aviary_models'
+        name: 'SursentiaMapFieldProcessor'
+        config:
+          field: 'my_field'
+          landcover_layer_name: 'sursentia_landcover'
+          solar_layer_name: 'sursentia_solar'
+          new_landcover_layer_name: null
+          new_solar_layer_name: null
+        ```
+
+    Attributes:
+        field: Field
+        landcover_layer_name: Layer name of the landcover layer (if None, the landcover layer is not used) -
+            defaults to 'sursentia_landcover'
+        solar_layer_name: Layer name of the solar layer (if None, the solar layer is not used) -
+            defaults to 'sursentia_solar'
+        new_landcover_layer_name: New layer name of the landcover layer -
+            defaults to None
+        new_solar_layer_name: New layer name of the solar layer -
+            defaults to None
+    """
+    field: str
+    landcover_layer_name: str | None = 'sursentia_landcover'
+    solar_layer_name: str | None = 'sursentia_solar'
+    new_landcover_layer_name: str | None = None
+    new_solar_layer_name: str | None = None
