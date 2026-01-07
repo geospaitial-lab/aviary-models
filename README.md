@@ -50,9 +50,6 @@ aviary-models is a plugin package containing models for [aviary].
 
 ## Installation
 
-⚠️ **Note**: aviary-models is currently released as a pre-release version.
-To install the latest version, you need to add the `--pre` flag.
-
 Each model has its own dependency group and additional dependencies.
 
 ### Installation with pip
