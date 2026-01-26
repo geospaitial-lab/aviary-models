@@ -111,10 +111,19 @@ class SlidingWindowInference:
 
         kernel_size, init_stride, patch_pixel_weights = self.get_sliding_window_params(device)
 
-        stride, n_patches_y, n_patches_x = self.align_sliding_window_params(H, W, kernel_size, init_stride)
+        stride, n_patches_y, n_patches_x = self.align_sliding_window_params(
+            H=H,
+            W=W,
+            kernel_size=kernel_size,
+            init_stride=init_stride,
+        )
 
         preds = {}
-        accumulated_pixel_weights = torch.zeros((H, W), dtype=patch_pixel_weights.dtype, device=device)
+        accumulated_pixel_weights = torch.zeros(
+            size=(H, W),
+            dtype=patch_pixel_weights.dtype,
+            device=device,
+        )
 
         for y in range(n_patches_y):
             for x in range(n_patches_x):
@@ -128,7 +137,7 @@ class SlidingWindowInference:
                 padding_y = 0
 
                 for key, value in batch.items():
-                    if value.dim() == 4:
+                    if value.dim() == 4:  # noqa: PLR2004
                         patch_value = value[:, :, start_y:end_y, start_x:end_x]
                         padding_x = kernel_size - patch_value.shape[3]
                         padding_y = kernel_size - patch_value.shape[2]
@@ -141,7 +150,11 @@ class SlidingWindowInference:
 
                 for key, value in pred.items():
                     if key not in preds:
-                        preds[key] = torch.zeros((B, value.shape[1], H, W), dtype=value.dtype, device=device)
+                        preds[key] = torch.zeros(
+                            size=(B, value.shape[1], H, W),
+                            dtype=value.dtype,
+                            device=device,
+                        )
 
                     patch_pred = value * patch_pixel_weights
 
