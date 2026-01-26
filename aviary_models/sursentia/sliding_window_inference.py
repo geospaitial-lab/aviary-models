@@ -92,7 +92,7 @@ class SlidingWindowInference:
         W: int,
         kernel_size: int,
         init_stride: int,
-    ) -> tuple[int, int, int, int, int]:
+    ) -> tuple[tuple[int, int], int, int]:
         n_patches_y = max(ceil((H - kernel_size) / init_stride + 1), 1)
         n_patches_x = max(ceil((W - kernel_size) / init_stride + 1), 1)
         stride_y = ceil((H - kernel_size) / (n_patches_y - 1)) if n_patches_y > 1 else 1
@@ -100,93 +100,7 @@ class SlidingWindowInference:
 
         stride = (stride_y, stride_x)
 
-        padded_H = (n_patches_y - 1) * stride_y + kernel_size
-        padded_W = (n_patches_x - 1) * stride_x + kernel_size
-
-        return stride, padded_H, padded_W, n_patches_y, n_patches_x
-
-    @staticmethod
-    def make_patches(
-        batch: dict[str, torch.Tensor],
-        kernel_size: int,
-        stride: int,
-        n_patches_per_item: int,
-        value_padding_H: int = 0,
-        value_padding_W: int = 0,
-    ) -> dict[str, torch.Tensor]:
-        patched_batch = {}
-
-        for key, value in batch.items():
-            if value.dim() == 4:  # noqa: PLR2004
-                B, channels, _, _ = value.shape
-                dtype = value.dtype
-
-                if dtype == torch.int32:
-                    value = value.view(torch.float32)  # noqa: PLW2901
-
-                value = torch.nn.functional.pad(  # noqa: PLW2901
-                    input=value,
-                    pad=(0, value_padding_W, 0, value_padding_H),
-                )
-                unfolded = torch.nn.functional.unfold(
-                    input=value,
-                    kernel_size=kernel_size,
-                    stride=stride,
-                )
-
-                if dtype == torch.int32:
-                    unfolded = unfolded.view(torch.int32)
-
-                patches = unfolded.reshape(B, channels, kernel_size, kernel_size, n_patches_per_item).moveaxis(-1, 1)
-                patches = patches.reshape(B * n_patches_per_item, channels, kernel_size, kernel_size)
-            else:
-                patches = value.repeat_interleave(n_patches_per_item, dim=0)
-
-            patched_batch[key] = patches
-
-        return patched_batch
-
-    @staticmethod
-    def reassemble_patches(
-        preds: dict[str, torch.Tensor],
-        patch_pixel_weights: torch.Tensor,
-        kernel_size: int,
-        stride: int,
-        n_patches_per_item: int,
-        B: int,
-        padded_H: int,
-        padded_W: int,
-        H: int,
-        W: int,
-    ) -> dict[str, torch.Tensor]:
-        pred = {}
-
-        for key, value in preds.items():
-            unfolded_value = value.reshape(B, n_patches_per_item, value.shape[1], kernel_size, kernel_size)
-            unfolded_value = unfolded_value.moveaxis(1, -1)
-            pixel_weights = patch_pixel_weights.reshape(1, 1, kernel_size, kernel_size, 1).expand_as(unfolded_value)
-            pixel_weights = pixel_weights.reshape(B, value.shape[1] * kernel_size * kernel_size, n_patches_per_item)
-            unfolded_value = unfolded_value.reshape(B, value.shape[1] * kernel_size * kernel_size, n_patches_per_item)
-
-            unfolded_value = unfolded_value * pixel_weights
-            divisor = torch.nn.functional.fold(
-                input=pixel_weights,
-                output_size=(padded_H, padded_W),
-                kernel_size=kernel_size,
-                stride=stride,
-            )
-
-            refolded_value = torch.nn.functional.fold(
-                input=unfolded_value,
-                output_size=(padded_H, padded_W),
-                kernel_size=kernel_size,
-                stride=stride,
-            )
-
-            final_value = refolded_value / divisor
-            pred[key] = final_value[:, :, :H, :W]
-
-        return pred
+        return stride, n_patches_y, n_patches_x
 
     def __call__(
         self,
@@ -197,55 +111,61 @@ class SlidingWindowInference:
 
         kernel_size, init_stride, patch_pixel_weights = self.get_sliding_window_params(device)
 
-        stride, padded_H, padded_W, n_patches_y, n_patches_x = self.align_sliding_window_params(
+        stride, n_patches_y, n_patches_x = self.align_sliding_window_params(
             H=H,
             W=W,
             kernel_size=kernel_size,
             init_stride=init_stride,
         )
-        value_padding_H = padded_H - H
-        value_padding_W = padded_W - W
 
-        n_patches_per_item = n_patches_x * n_patches_y
-        n_batches = ceil((B * n_patches_per_item) / self._batch_size)
-
-        patched_batch = self.make_patches(
-            batch=batch,
-            kernel_size=kernel_size,
-            stride=stride,
-            n_patches_per_item=n_patches_per_item,
-            value_padding_H=value_padding_H,
-            value_padding_W=value_padding_W,
+        preds = {}
+        accumulated_pixel_weights = torch.zeros(
+            size=(H, W),
+            dtype=patch_pixel_weights.dtype,
+            device=device,
         )
 
-        chunked_patch_values = [
-            torch.chunk(value, n_batches, dim=0)
-            for value in patched_batch.values()
-        ]
-        chunks = [
-            dict(zip(patched_batch.keys(), values, strict=True))
-            for values in zip(*chunked_patch_values, strict=True)
-        ]
+        for y in range(n_patches_y):
+            for x in range(n_patches_x):
+                start_y = y * stride[0]
+                start_x = x * stride[1]
+                end_y = start_y + kernel_size
+                end_x = start_x + kernel_size
 
-        chunked_preds = []
+                patch = {}
+                padding_x = 0
+                padding_y = 0
 
-        for chunk in chunks:
-            chunked_preds.append(model(chunk))  # noqa: PERF401
+                for key, value in batch.items():
+                    if value.dim() == 4:  # noqa: PLR2004
+                        patch_value = value[:, :, start_y:end_y, start_x:end_x]
+                        padding_x = kernel_size - patch_value.shape[3]
+                        padding_y = kernel_size - patch_value.shape[2]
+                        patch_value = torch.nn.functional.pad(patch_value, (0, padding_x, 0, padding_y))
+                        patch[key] = patch_value
+                    else:
+                        patch[key] = value
 
-        patched_preds = {
-            key: torch.cat([pred[key] for pred in chunked_preds], dim=0)
-            for key in chunked_preds[0]
-        }
+                pred = model(patch)
 
-        return self.reassemble_patches(
-            preds=patched_preds,
-            patch_pixel_weights=patch_pixel_weights,
-            kernel_size=kernel_size,
-            stride=stride,
-            n_patches_per_item=n_patches_per_item,
-            B=B,
-            padded_H=padded_H,
-            padded_W=padded_W,
-            H=H,
-            W=W,
-        )
+                for key, value in pred.items():
+                    if key not in preds:
+                        preds[key] = torch.zeros(
+                            size=(B, value.shape[1], H, W),
+                            dtype=value.dtype,
+                            device=device,
+                        )
+
+                    patch_pred = value * patch_pixel_weights
+
+                    preds[key][:, :, start_y:end_y, start_x:end_x] += (
+                        patch_pred[:, :, :kernel_size-padding_y, :kernel_size-padding_x]
+                    )
+                    accumulated_pixel_weights[start_y:end_y, start_x:end_x] += (
+                        patch_pixel_weights[:kernel_size-padding_y, :kernel_size-padding_x]
+                    )
+
+        for key, value in preds.items():
+            preds[key] = value / accumulated_pixel_weights
+
+        return preds
