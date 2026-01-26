@@ -171,7 +171,6 @@ class Sursentia:
 
     Additional dependencies:
         Sursentia requires the `sursentia` dependency group and `torch`.
-        `xformers` is required for GPU inference.
 
     Implements the `TilesProcessor` protocol.
     """
@@ -243,16 +242,6 @@ class Sursentia:
 
         if self._device.type == 'cpu':
             self._dtype = torch.float32
-        else:
-            try:
-                import xformers  # noqa: F401, PLC0415
-            except ImportError as error:
-                message = (
-                    'Missing dependencies! '
-                    'To use Sursentia, you need to install the Sursentia dependency group '
-                    '(pip install geospaitial-lab-aviary-models[sursentia]) and torch.'
-                )
-                raise ImportError(message) from error
 
         torch.hub.set_dir(self._cache_dir_path)
 
