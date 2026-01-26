@@ -182,7 +182,7 @@ class Sursentia:
     }
     _HF_HUB_REPO = 'geospaitial-lab/sursentia'
 
-    def __init__(  # noqa: PLR0915
+    def __init__(
         self,
         r_channel_name: ChannelName | str = ChannelName.R,
         g_channel_name: ChannelName | str = ChannelName.G,
