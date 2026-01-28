@@ -1,5 +1,5 @@
 #  Copyright (C) 2025 Marius Maryniak
-#  Copyright (C) 2025 Alexander Roß
+#  Copyright (C) 2025-2026 Alexander Roß
 #
 #  This file is part of aviary-models.
 #
