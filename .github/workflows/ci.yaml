@@ -30,7 +30,7 @@ jobs:
           - ubuntu-latest
         python-version:
           - '3.10'
-          - '3.12'
+          - '3.13'
         dependencies:
           - latest
           - lower-bounds
