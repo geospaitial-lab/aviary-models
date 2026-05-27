@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import uuid
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -313,6 +314,14 @@ class Sursentia(IDMixin):
 
         super().__init__()
 
+    @property
+    def id(self) -> uuid.UUID:
+        """
+        Returns:
+            ID
+        """
+        return self._id
+
     @classmethod
     def from_config(
         cls,
@@ -528,6 +537,14 @@ class SursentiaPreprocessor(IDMixin):
 
         super().__init__()
 
+    @property
+    def id(self) -> uuid.UUID:
+        """
+        Returns:
+            ID
+        """
+        return self._id
+
     @classmethod
     def from_config(
         cls,
@@ -682,6 +699,14 @@ class SursentiaMapFieldProcessor(IDMixin):
         )
 
         super().__init__()
+
+    @property
+    def id(self) -> uuid.UUID:
+        """
+        Returns:
+            ID
+        """
+        return self._id
 
     @classmethod
     def from_config(
