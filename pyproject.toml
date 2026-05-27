@@ -36,7 +36,7 @@ dynamic = [
     "version",
 ]
 dependencies = [
-    "geospaitial-lab-aviary>=1.0.0b4",
+    "geospaitial-lab-aviary>=1.8.0",
 ]
 
 [project.optional-dependencies]
