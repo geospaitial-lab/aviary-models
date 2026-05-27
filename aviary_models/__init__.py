@@ -14,6 +14,8 @@
 #  You should have received a copy of the GNU General Public License along with aviary-models.
 #  If not, see <https://www.gnu.org/licenses/>.
 
+import contextlib
+
 from .sursentia.sursentia import (
     Device,
     Sursentia,
@@ -36,5 +38,12 @@ __all__ = [
     'SursentiaVersion',
     '__version__',
 ]
+
+for name in __all__:
+    obj = globals().get(name)
+
+    if obj and hasattr(obj, '__module__') and obj.__module__ != 'builtins':
+        with contextlib.suppress(AttributeError, TypeError):
+            obj.__module__ = __name__
 
 __version__ = '0.1.2'
