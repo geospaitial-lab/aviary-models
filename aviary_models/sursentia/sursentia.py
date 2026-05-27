@@ -30,6 +30,7 @@ from aviary import (
     AviaryUserError,
     ChannelName,
     RasterChannel,
+    log,
 )
 from aviary.core.mixins import IDMixin
 from aviary.tile import (
@@ -153,6 +154,7 @@ class SursentiaConfig(pydantic.BaseModel):
 
 
 @register_tiles_processor(config_class=SursentiaConfig)
+@log
 class Sursentia(IDMixin):
     """Tiles processor that uses the Sursentia model to predict landcover and solar panels.
 
@@ -442,6 +444,7 @@ class SursentiaPreprocessorConfig(pydantic.BaseModel):
 
 
 @register_tiles_processor(config_class=SursentiaPreprocessorConfig)
+@log
 class SursentiaPreprocessor(IDMixin):
     """Tiles processor that preprocesses the input channels of the Sursentia model.
 
@@ -617,6 +620,7 @@ class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
 
 
 @register_vector_processor(config_class=SursentiaMapFieldProcessorConfig)
+@log
 class SursentiaMapFieldProcessor(IDMixin):
     """Vector processor that maps the fields of the layers of the Sursentia model.
 
