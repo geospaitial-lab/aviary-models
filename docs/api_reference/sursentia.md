@@ -7,6 +7,8 @@
 </div>
 
 ::: aviary_models.Sursentia
+    options:
+      inherited_members: true
 
 ---
 
@@ -15,6 +17,8 @@
 ---
 
 ::: aviary_models.SursentiaPreprocessor
+    options:
+      inherited_members: true
 
 ---
 
@@ -23,6 +27,8 @@
 ---
 
 ::: aviary_models.SursentiaMapFieldProcessor
+    options:
+      inherited_members: true
 
 ---
 
