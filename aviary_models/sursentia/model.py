@@ -304,7 +304,12 @@ class DINOUperNet(torch.nn.Module):
         super().__init__()
 
         self._out_name = out_name
-        self.backbone = torch.hub.load('facebookresearch/dinov2', hyperparameters["backbone_name"], verbose=False, pretrained=load_backbone)
+        self.backbone = torch.hub.load(
+            'facebookresearch/dinov2',
+            hyperparameters['backbone_name'],
+            verbose=False,
+            pretrained=load_backbone,
+        )
         del self.backbone.mask_token
 
         self.intermediate_layers = hyperparameters['intermediate_layers']

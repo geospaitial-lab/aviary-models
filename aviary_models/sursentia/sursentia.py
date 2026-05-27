@@ -186,11 +186,11 @@ class Sursentia(IDMixin):
         SursentiaVersion.V2_0: {
             'landcover': 'models/v2_0/sursentia_landcover.ckpt',
             'solar': 'models/v2_0/sursentia_solar.ckpt',
-        }
+        },
     }
     _HF_HUB_REPO = 'geospaitial-lab/sursentia'
 
-    def __init__(
+    def __init__(  # noqa: PLR0915
         self,
         r_channel_name: ChannelName | str = ChannelName.R,
         g_channel_name: ChannelName | str = ChannelName.G,
@@ -273,7 +273,7 @@ class Sursentia(IDMixin):
                 map_location=self._device,
                 weights_only=False,
             )
-            load_backbone = not any([key.startswith("backbone.") for key in landcover_ckpt['state_dict']])
+            load_backbone = not any(key.startswith('backbone.') for key in landcover_ckpt['state_dict'])
             self._landcover_model = DINOUperNet(
                 hyperparameters=landcover_ckpt['hyperparameters'],
                 load_backbone=load_backbone,
@@ -304,7 +304,7 @@ class Sursentia(IDMixin):
                 map_location=self._device,
                 weights_only=False,
             )
-            load_backbone = not any([key.startswith("backbone.") for key in solar_ckpt['state_dict']])
+            load_backbone = not any(key.startswith('backbone.') for key in solar_ckpt['state_dict'])
             self._solar_model = DINOUperNet(
                 hyperparameters=solar_ckpt['hyperparameters'],
                 load_backbone=load_backbone,
@@ -375,14 +375,14 @@ class Sursentia(IDMixin):
                 self._landcover_inference(
                     model=self._landcover_model,
                     batch=inputs,
-                )
+                ),
             )
         if self._solar_model is not None:
             logits_dict.update(
                 self._solar_inference(
                     model=self._solar_model,
                     batch=inputs,
-                )
+                ),
             )
 
         for channel_name, logits in logits_dict.items():
@@ -677,7 +677,7 @@ class SursentiaMapFieldProcessor(IDMixin):
             9: 'Gewaesser',
             10: 'sonstige unversiegelte Flaeche',
             11: 'unversiegelter Weg',
-        }
+        },
     }
     _SOLAR_MAPPING = {  # noqa: RUF012
         0: 'Hintergrund',
