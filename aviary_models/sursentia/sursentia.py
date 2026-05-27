@@ -1,4 +1,4 @@
-#  Copyright (C) 2025 Marius Maryniak
+#  Copyright (C) 2025-2026 Marius Maryniak
 #  Copyright (C) 2025-2026 Alexander Roß
 #
 #  This file is part of aviary-models.
@@ -20,6 +20,9 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    import uuid
+
 import numpy as np
 import pydantic
 import torch
@@ -28,6 +31,7 @@ from aviary import (
     ChannelName,
     RasterChannel,
 )
+from aviary.core.mixins import IDMixin
 from aviary.tile import (
     NormalizeProcessor,
     StandardizeProcessor,
@@ -149,7 +153,7 @@ class SursentiaConfig(pydantic.BaseModel):
 
 
 @register_tiles_processor(config_class=SursentiaConfig)
-class Sursentia:
+class Sursentia(IDMixin):
     """Tiles processor that uses the Sursentia model to predict landcover and solar panels.
 
     Model input channels:
@@ -310,6 +314,16 @@ class Sursentia:
             downweight_edges=True,
         )
 
+        super().__init__()
+
+    @property
+    def id(self) -> uuid.UUID:
+        """
+        Returns:
+            ID
+        """
+        return self._id
+
     @classmethod
     def from_config(
         cls,
@@ -428,7 +442,7 @@ class SursentiaPreprocessorConfig(pydantic.BaseModel):
 
 
 @register_tiles_processor(config_class=SursentiaPreprocessorConfig)
-class SursentiaPreprocessor:
+class SursentiaPreprocessor(IDMixin):
     """Tiles processor that preprocesses the input channels of the Sursentia model.
 
     Implements the `TilesProcessor` protocol.
@@ -523,6 +537,16 @@ class SursentiaPreprocessor:
             ],
         )
 
+        super().__init__()
+
+    @property
+    def id(self) -> uuid.UUID:
+        """
+        Returns:
+            ID
+        """
+        return self._id
+
     @classmethod
     def from_config(
         cls,
@@ -593,7 +617,7 @@ class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
 
 
 @register_vector_processor(config_class=SursentiaMapFieldProcessorConfig)
-class SursentiaMapFieldProcessor:
+class SursentiaMapFieldProcessor(IDMixin):
     """Vector processor that maps the fields of the layers of the Sursentia model.
 
     Landcover mapping:
@@ -675,6 +699,16 @@ class SursentiaMapFieldProcessor:
         self._sursentia_map_field_processor = SequentialCompositeVectorProcessor(
             vector_processors=vector_processors,
         )
+
+        super().__init__()
+
+    @property
+    def id(self) -> uuid.UUID:
+        """
+        Returns:
+            ID
+        """
+        return self._id
 
     @classmethod
     def from_config(
