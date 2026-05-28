@@ -46,4 +46,4 @@ for name in __all__:
         with contextlib.suppress(AttributeError, TypeError):
             obj.__module__ = __name__
 
-__version__ = '0.1.2'
+__version__ = '0.2.0'
