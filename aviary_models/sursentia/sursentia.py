@@ -168,7 +168,10 @@ class Sursentia(IDMixin):
     Model output channels:
         - 'sursentia_landcover': Landcover channel, raster channel, ground sampling distance of the input channels,
             the values are 0 (buildings), 1 (buildings with green roofs), 2 (impervious surfaces),
-            3 (non-impervious surfaces), and 4 (water bodies)
+            3 (non-impervious surfaces), and 4 (water bodies) for v1.0 and
+            0 (flat roofs), 1 (green roofs), 2 (pitched roofs), 3 (traffic areas), 4 (pools), 5 (tracks),
+            6 (other impervious surfaces), 7 (vegetation), 8 (agricultural areas), 9 (water bodies),
+            10 (other non-impervious surfaces), and 11 (non-impervious paths) for v2.0
         - 'sursentia_solar': Solar panels channel, raster channel, ground sampling distance of the input channels,
             the values are 0 (background) and 1 (solar panels)
         - Use the `SursentiaMapFieldProcessor` to map the fields of the layers
