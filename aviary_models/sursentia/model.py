@@ -1,5 +1,5 @@
 #  Copyright (C) 2025 Marius Maryniak
-#  Copyright (C) 2025 Alexander Roß
+#  Copyright (C) 2025-2026 Alexander Roß
 #
 #  This file is part of aviary-models.
 #
@@ -293,94 +293,47 @@ class FuseBlock(torch.nn.Module):
         return self.conv_block(torch.cat(scaled_features, dim=1))
 
 
-class UPerNet(torch.nn.Module):
+class DINOUperNet(torch.nn.Module):
 
     def __init__(
         self,
-        num_backbone_features: int,
-        num_classes: int,
-        intermediate_layers: list[int],
-        pyramid_scales: list[int],
-        num_channels_fpn: int,
-        ppm_scales: list[int],
+        hyperparameters: dict,
+        load_backbone: bool,
+        out_name: str,
     ) -> None:
         super().__init__()
 
-        self.intermediate_layers = intermediate_layers
+        self._out_name = out_name
+        self.backbone = torch.hub.load(
+            'facebookresearch/dinov2',
+            hyperparameters['backbone_name'],
+            verbose=False,
+            pretrained=load_backbone,
+        )
+        del self.backbone.mask_token
+
+        self.intermediate_layers = hyperparameters['intermediate_layers']
+        num_backbone_features = self.backbone.num_features
+        num_classes = hyperparameters['num_classes']
+        pyramid_scales = hyperparameters['pyramid_scales']
+        num_channels_fpn = hyperparameters['num_channels_fpn']
+        ppm_scales = hyperparameters['ppm_scales']
 
         self.pyramid_rescaler = PyramidRescaler(num_channels=num_backbone_features, scales=pyramid_scales)
         self.fpn = FPN(
             num_channels_in=num_backbone_features,
             num_channels_out=num_channels_fpn,
-            num_levels=len(intermediate_layers),
+            num_levels=len(self.intermediate_layers),
             ppm_scales=ppm_scales,
             dropout_rate=0.,
         )
         self.fuse_block = FuseBlock(
             num_channels=num_channels_fpn,
-            num_layers=len(intermediate_layers),
+            num_layers=len(self.intermediate_layers),
             dropout_rate=0.,
         )
 
         self.class_head = torch.nn.Conv2d(num_channels_fpn, num_classes, kernel_size=1)
-
-    def forward(
-        self,
-        inputs: tuple[torch.Tensor],
-    ) -> torch.Tensor:
-        feature_pyramid = self.pyramid_rescaler(inputs)
-        fpn_features = self.fpn(feature_pyramid)
-        fused_features = self.fuse_block(fpn_features)
-
-        return self.class_head(fused_features)
-
-
-class DINOUperNet(torch.nn.Module):
-
-    def __init__(
-        self,
-        backbone_name: str,
-        landcover_ckpt: dict,
-        solar_ckpt: dict,
-        landcover_out_name: str = 'sursentia_landcover',
-        solar_out_name: str = 'sursentia_solar',
-    ) -> None:
-        super().__init__()
-
-        self._backbone = torch.hub.load('facebookresearch/dinov2', backbone_name, verbose=False)
-
-        self.intermediate_layers = None
-        self._landcover_upernet = None
-
-        if landcover_ckpt is not None:
-            hyperparameters = landcover_ckpt['hyperparameters']
-            self._landcover_upernet = UPerNet(
-                num_backbone_features=self._backbone.num_features,
-                num_classes=hyperparameters['num_classes'],
-                intermediate_layers=hyperparameters['intermediate_layers'],
-                pyramid_scales=hyperparameters['pyramid_scales'],
-                num_channels_fpn=hyperparameters['num_channels_fpn'],
-                ppm_scales=hyperparameters['ppm_scales'],
-            )
-            self._landcover_upernet.load_state_dict(landcover_ckpt['state_dict'])
-            self.intermediate_layers = hyperparameters['intermediate_layers']
-
-        self._solar_upernet = None
-        if solar_ckpt is not None:
-            hyperparameters = solar_ckpt['hyperparameters']
-            self._solar_upernet = UPerNet(
-                num_backbone_features=self._backbone.num_features,
-                num_classes=hyperparameters['num_classes'],
-                intermediate_layers=hyperparameters['intermediate_layers'],
-                pyramid_scales=hyperparameters['pyramid_scales'],
-                num_channels_fpn=hyperparameters['num_channels_fpn'],
-                ppm_scales=hyperparameters['ppm_scales'],
-            )
-            self._solar_upernet.load_state_dict(solar_ckpt['state_dict'])
-            self.intermediate_layers = hyperparameters['intermediate_layers']
-
-        self._landcover_out_name = landcover_out_name
-        self._solar_out_name = solar_out_name
 
     def forward(
         self,
@@ -392,7 +345,7 @@ class DINOUperNet(torch.nn.Module):
         out_dict = {}
 
         with torch.no_grad():
-            features = self._backbone.get_intermediate_layers(
+            features = self.backbone.get_intermediate_layers(
                 x,
                 n=self.intermediate_layers,
                 reshape=True,
@@ -400,24 +353,17 @@ class DINOUperNet(torch.nn.Module):
                 return_class_token=False,
             )
 
-            if self._landcover_upernet is not None:
-                landcover_logits = self._landcover_upernet(features)
-                landcover_logits = torch.nn.functional.interpolate(
-                    input=landcover_logits,
-                    size=(H, W),
-                    mode='bilinear',
-                    align_corners=False,
-                )
-                out_dict[self._landcover_out_name] = landcover_logits
+            feature_pyramid = self.pyramid_rescaler(features)
+            fpn_features = self.fpn(feature_pyramid)
+            fused_features = self.fuse_block(fpn_features)
+            logits = self.class_head(fused_features)
 
-            if self._solar_upernet is not None:
-                solar_logits = self._solar_upernet(features)
-                solar_logits = torch.nn.functional.interpolate(
-                    input=solar_logits,
-                    size=(H, W),
-                    mode='bilinear',
-                    align_corners=False,
-                )
-                out_dict[self._solar_out_name] = solar_logits
+            logits = torch.nn.functional.interpolate(
+                input=logits,
+                size=(H, W),
+                mode='bilinear',
+                align_corners=False,
+            )
+            out_dict[self._out_name] = logits
 
         return out_dict

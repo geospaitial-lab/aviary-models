@@ -26,12 +26,10 @@ class SlidingWindowInference:
     def __init__(
         self,
         window_size: int,
-        batch_size: int,
         overlap: float = .5,
         downweight_edges: bool = True,
     ) -> None:
         self._window_size = window_size
-        self._batch_size = batch_size
         self._overlap = overlap
         self._downweight_edges = downweight_edges
 

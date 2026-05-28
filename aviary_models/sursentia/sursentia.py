@@ -85,15 +85,17 @@ class SursentiaVersion(Enum):
     """
     Attributes:
         V1_0: Version 1.0
+        V2_0: Version 2.0
     """
     V1_0 = '1.0'
+    V2_0 = '2.0'
 
 
 class SursentiaConfig(pydantic.BaseModel):
     """Configuration for the `from_config` class method of `Sursentia`
 
     Create the configuration from a config file:
-        - Use '1.0' instead of `SursentiaVersion.V1_0`
+        - Use '1.0' or '2.0' instead of `SursentiaVersion.V1_0` or `SursentiaVersion.V2_0`
         - Use 'cpu' or 'gpu' instead of `Device.CPU` or `Device.GPU`
         - Use null instead of None
         - Use false or true instead of False or True
@@ -110,8 +112,7 @@ class SursentiaConfig(pydantic.BaseModel):
           b_channel_name: 'b'
           landcover_channel_name: 'sursentia_landcover'
           solar_channel_name: 'sursentia_solar'
-          batch_size: 1
-          version: '1.0'
+          version: '2.0'
           device: 'cpu'
           cache_dir_path: 'cache'
           remove_channels: true
@@ -130,10 +131,8 @@ class SursentiaConfig(pydantic.BaseModel):
         solar_channel_name: Channel name of the solar panels channel (if None, the solar head of the model
             is not used) -
             defaults to 'sursentia_solar'
-        batch_size: Batch size of the sliding window inference -
-            defaults to 1
-        version: Version of the model (`V1_0`) -
-            defaults to `SursentiaVersion.V1_0`
+        version: Version of the model (`V1_0` or `V2_0`) -
+            defaults to `SursentiaVersion.V2_0`
         device: Device to run the model on (`CPU` or `GPU`) -
             defaults to `Device.CPU`
         cache_dir_path: Path to the cache directory of the model -
@@ -146,8 +145,7 @@ class SursentiaConfig(pydantic.BaseModel):
     b_channel_name: ChannelName | str = ChannelName.B
     landcover_channel_name: str | None = 'sursentia_landcover'
     solar_channel_name: str | None = 'sursentia_solar'
-    batch_size: int = 1
-    version: SursentiaVersion = SursentiaVersion.V1_0
+    version: SursentiaVersion = SursentiaVersion.V2_0
     device: Device = Device.CPU
     cache_dir_path: Path = Path('cache')
     remove_channels: bool = True
@@ -170,7 +168,10 @@ class Sursentia(IDMixin):
     Model output channels:
         - 'sursentia_landcover': Landcover channel, raster channel, ground sampling distance of the input channels,
             the values are 0 (buildings), 1 (buildings with green roofs), 2 (impervious surfaces),
-            3 (non-impervious surfaces), and 4 (water bodies)
+            3 (non-impervious surfaces), and 4 (water bodies) for v1.0 and
+            0 (flat roofs), 1 (green roofs), 2 (pitched roofs), 3 (traffic areas), 4 (pools), 5 (tracks),
+            6 (other impervious surfaces), 7 (vegetation), 8 (agricultural areas), 9 (water bodies),
+            10 (other non-impervious surfaces), and 11 (non-impervious paths) for v2.0
         - 'sursentia_solar': Solar panels channel, raster channel, ground sampling distance of the input channels,
             the values are 0 (background) and 1 (solar panels)
         - Use the `SursentiaMapFieldProcessor` to map the fields of the layers
@@ -185,18 +186,21 @@ class Sursentia(IDMixin):
             'landcover': 'models/v1_0/sursentia_landcover.ckpt',
             'solar': 'models/v1_0/sursentia_solar.ckpt',
         },
+        SursentiaVersion.V2_0: {
+            'landcover': 'models/v2_0/sursentia_landcover.ckpt',
+            'solar': 'models/v2_0/sursentia_solar.ckpt',
+        },
     }
     _HF_HUB_REPO = 'geospaitial-lab/sursentia'
 
-    def __init__(
+    def __init__(  # noqa: PLR0915
         self,
         r_channel_name: ChannelName | str = ChannelName.R,
         g_channel_name: ChannelName | str = ChannelName.G,
         b_channel_name: ChannelName | str = ChannelName.B,
         landcover_channel_name: str | None = 'sursentia_landcover',
         solar_channel_name: str | None = 'sursentia_solar',
-        batch_size: int = 1,
-        version: SursentiaVersion = SursentiaVersion.V1_0,
+        version: SursentiaVersion = SursentiaVersion.V2_0,
         device: Device = Device.CPU,
         cache_dir_path: Path = Path('cache'),
         remove_channels: bool = True,
@@ -210,8 +214,7 @@ class Sursentia(IDMixin):
                 is not used)
             solar_channel_name: Channel name of the solar panels channel (if None, the solar head of the model
                 is not used)
-            batch_size: Batch size of the sliding window inference
-            version: Version of the model (`V1_0`)
+            version: Version of the model (`V1_0` or `V2_0`)
             device: Device to run the model on (`CPU` or `GPU`)
             cache_dir_path: Path to cache directory of the model
             remove_channels: If True, the channels are removed
@@ -232,7 +235,6 @@ class Sursentia(IDMixin):
         self._b_channel_name = b_channel_name
         self._landcover_channel_name = landcover_channel_name
         self._solar_channel_name = solar_channel_name
-        self._batch_size = batch_size
         self._version = version
         self._device = device.to_torch()
         self._dtype = torch.float16
@@ -260,7 +262,8 @@ class Sursentia(IDMixin):
 
         hf_hub_model_paths = self._HF_HUB_MODEL_PATHS[self._version]
 
-        landcover_ckpt = None
+        self._landcover_model = None
+        self._landcover_inference = None
 
         if self._landcover_channel_name is not None:
             landcover_ckpt_path = hf_hub_download(
@@ -273,8 +276,25 @@ class Sursentia(IDMixin):
                 map_location=self._device,
                 weights_only=False,
             )
+            load_backbone = not any(key.startswith('backbone.') for key in landcover_ckpt['state_dict'])
+            self._landcover_model = DINOUperNet(
+                hyperparameters=landcover_ckpt['hyperparameters'],
+                load_backbone=load_backbone,
+                out_name=self._landcover_channel_name,
+            )
+            self._landcover_model.load_state_dict(landcover_ckpt['state_dict'], strict=not load_backbone)
+            self._landcover_model.requires_grad_(requires_grad=False)
+            self._landcover_model.eval()
+            self._landcover_model.to(self._device)
+            self._landcover_model.to(self._dtype)
+            self._landcover_inference = SlidingWindowInference(
+                window_size=landcover_ckpt['hyperparameters']['patch_size'],
+                overlap=.5,
+                downweight_edges=True,
+        )
 
-        solar_ckpt = None
+        self._solar_model = None
+        self._solar_inference = None
 
         if self._solar_channel_name is not None:
             solar_ckpt_path = hf_hub_download(
@@ -287,34 +307,22 @@ class Sursentia(IDMixin):
                 map_location=self._device,
                 weights_only=False,
             )
-
-        ckpt = landcover_ckpt if landcover_ckpt is not None else solar_ckpt
-
-        if ckpt is None:
-            message = 'Invalid checkpoint!'
-            raise AviaryUserError(message)
-
-        backbone_name = ckpt['hyperparameters']['backbone_name']
-        patch_size = ckpt['hyperparameters']['patch_size']
-
-        self._model = DINOUperNet(
-            backbone_name=backbone_name,
-            landcover_ckpt=landcover_ckpt,
-            solar_ckpt=solar_ckpt,
-            landcover_out_name=self._landcover_channel_name,
-            solar_out_name=self._solar_channel_name,
-        )
-        self._model.requires_grad_(requires_grad=False)
-        self._model.eval()
-        self._model.to(self._device)
-        self._model.to(self._dtype)
-
-        self._sliding_window_inference = SlidingWindowInference(
-            window_size=patch_size,
-            batch_size=self._batch_size,
-            overlap=.5,
-            downweight_edges=True,
-        )
+            load_backbone = not any(key.startswith('backbone.') for key in solar_ckpt['state_dict'])
+            self._solar_model = DINOUperNet(
+                hyperparameters=solar_ckpt['hyperparameters'],
+                load_backbone=load_backbone,
+                out_name=self._solar_channel_name,
+            )
+            self._solar_model.load_state_dict(solar_ckpt['state_dict'], strict=not load_backbone)
+            self._solar_model.requires_grad_(requires_grad=False)
+            self._solar_model.eval()
+            self._solar_model.to(self._device)
+            self._solar_model.to(self._dtype)
+            self._solar_inference = SlidingWindowInference(
+                window_size=solar_ckpt['hyperparameters']['patch_size'],
+                overlap=.5,
+                downweight_edges=True,
+            )
 
         super().__init__()
 
@@ -364,10 +372,22 @@ class Sursentia(IDMixin):
         inputs = torch.from_numpy(inputs).to(self._dtype).to(self._device).permute(0, 3, 1, 2)
         inputs = {'tensor': inputs}
 
-        logits_dict = self._sliding_window_inference(
-            model=self._model,
-            batch=inputs,
-        )
+        logits_dict = {}
+
+        if self._landcover_model is not None:
+            logits_dict.update(
+                self._landcover_inference(
+                    model=self._landcover_model,
+                    batch=inputs,
+                ),
+            )
+        if self._solar_model is not None:
+            logits_dict.update(
+                self._solar_inference(
+                    model=self._solar_model,
+                    batch=inputs,
+                ),
+            )
 
         for channel_name, logits in logits_dict.items():
             preds = np.argmax(logits.cpu().numpy(), axis=1).astype(np.uint8)
@@ -585,6 +605,7 @@ class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
     """Configuration for the `from_config` class method of `SursentiaMapFieldProcessor`
 
     Create the configuration from a config file:
+        - Use '1.0' or '2.0' instead of `SursentiaVersion.V1_0` or `SursentiaVersion.V2_0`
         - Use null instead of None
 
     Example:
@@ -599,6 +620,7 @@ class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
           solar_layer_name: 'sursentia_solar'
           new_landcover_layer_name: null
           new_solar_layer_name: null
+          version: '2.0'
         ```
 
     Attributes:
@@ -611,12 +633,15 @@ class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
             defaults to None
         new_solar_layer_name: New layer name of the solar layer -
             defaults to None
+        version: Version of the model (`V1_0` or `V2_0`) -
+            defaults to `SursentiaVersion.V2_0`
     """
     field: str
     landcover_layer_name: str | None = 'sursentia_landcover'
     solar_layer_name: str | None = 'sursentia_solar'
     new_landcover_layer_name: str | None = None
     new_solar_layer_name: str | None = None
+    version: SursentiaVersion = SursentiaVersion.V2_0
 
 
 @register_vector_processor(config_class=SursentiaMapFieldProcessorConfig)
@@ -624,12 +649,26 @@ class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
 class SursentiaMapFieldProcessor(IDMixin):
     """Vector processor that maps the fields of the layers of the Sursentia model.
 
-    Landcover mapping:
+    Landcover mapping (v1.0):
         - 0: 'Gebäude'
         - 1: 'Gründach'
         - 2: 'versiegelte Fläche'
         - 3: 'nicht versiegelte Fläche'
         - 4: 'Gewässer'
+
+    Landcover mapping (v2.0):
+        - 0: 'Flachdach'
+        - 1: 'Gründach'
+        - 2: 'Schrägdach'
+        - 3: 'Verkehrsfläche'
+        - 4: 'Pool'
+        - 5: 'Gleis'
+        - 6: 'sonstige versiegelte Fläche'
+        - 7: 'Vegetation'
+        - 8: 'Agrarfläche'
+        - 9: 'Gewässer'
+        - 10: 'sonstige nicht versiegelte Fläche'
+        - 11: 'nicht versiegelter Weg'
 
     Solar mapping:
         - 0: 'Hintergrund'
@@ -638,11 +677,27 @@ class SursentiaMapFieldProcessor(IDMixin):
     Implements the `VectorProcessor` protocol.
     """
     _LANDCOVER_MAPPING = {  # noqa: RUF012
-        0: 'Gebäude',
-        1: 'Gründach',
-        2: 'versiegelte Fläche',
-        3: 'nicht versiegelte Fläche',
-        4: 'Gewässer',
+        SursentiaVersion.V1_0: {
+            0: 'Gebäude',
+            1: 'Gründach',
+            2: 'versiegelte Fläche',
+            3: 'nicht versiegelte Fläche',
+            4: 'Gewässer',
+        },
+        SursentiaVersion.V2_0: {
+            0: 'Flachdach',
+            1: 'Gründach',
+            2: 'Schrägdach',
+            3: 'Verkehrsfläche',
+            4: 'Pool',
+            5: 'Gleis',
+            6: 'sonstige versiegelte Fläche',
+            7: 'Vegetation',
+            8: 'Agrarfläche',
+            9: 'Gewässer',
+            10: 'sonstige nicht versiegelte Fläche',
+            11: 'nicht versiegelter Weg',
+        },
     }
     _SOLAR_MAPPING = {  # noqa: RUF012
         0: 'Hintergrund',
@@ -656,6 +711,7 @@ class SursentiaMapFieldProcessor(IDMixin):
         solar_layer_name: str | None = 'sursentia_solar',
         new_landcover_layer_name: str | None = None,
         new_solar_layer_name: str | None = None,
+        version: SursentiaVersion = SursentiaVersion.V2_0,
     ) -> None:
         """
         Parameters:
@@ -664,6 +720,7 @@ class SursentiaMapFieldProcessor(IDMixin):
             solar_layer_name: Layer name of the solar layer (if None, the solar layer is not used)
             new_landcover_layer_name: New layer name of the landcover layer
             new_solar_layer_name: New layer name of the solar layer
+            version: Version of the model (`V1_0` or `V2_0`)
         """
         self._field = field
         self._landcover_layer_name = landcover_layer_name
@@ -685,7 +742,7 @@ class SursentiaMapFieldProcessor(IDMixin):
                 MapFieldProcessor(
                     layer_name=self._landcover_layer_name,
                     field=self._field,
-                    mapping=self._LANDCOVER_MAPPING,
+                    mapping=self._LANDCOVER_MAPPING[version],
                     new_layer_name=self._new_landcover_layer_name,
                 ),
             )
