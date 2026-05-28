@@ -85,7 +85,7 @@ class SursentiaVersion(Enum):
     """
     Attributes:
         V1_0: Version 1.0
-        V2_0_ Version 2.0
+        V2_0: Version 2.0
     """
     V1_0 = '1.0'
     V2_0 = '2.0'
@@ -95,7 +95,7 @@ class SursentiaConfig(pydantic.BaseModel):
     """Configuration for the `from_config` class method of `Sursentia`
 
     Create the configuration from a config file:
-        - Use '1.0' instead of `SursentiaVersion.V1_0`
+        - Use '1.0' or '2.0' instead of `SursentiaVersion.V1_0` or `SursentiaVersion.V2_0`
         - Use 'cpu' or 'gpu' instead of `Device.CPU` or `Device.GPU`
         - Use null instead of None
         - Use false or true instead of False or True
@@ -131,7 +131,7 @@ class SursentiaConfig(pydantic.BaseModel):
         solar_channel_name: Channel name of the solar panels channel (if None, the solar head of the model
             is not used) -
             defaults to 'sursentia_solar'
-        version: Version of the model (`V2_0`) -
+        version: Version of the model (`V1_0` or `V2_0`) -
             defaults to `SursentiaVersion.V2_0`
         device: Device to run the model on (`CPU` or `GPU`) -
             defaults to `Device.CPU`
@@ -145,7 +145,7 @@ class SursentiaConfig(pydantic.BaseModel):
     b_channel_name: ChannelName | str = ChannelName.B
     landcover_channel_name: str | None = 'sursentia_landcover'
     solar_channel_name: str | None = 'sursentia_solar'
-    version: SursentiaVersion = SursentiaVersion.V1_0
+    version: SursentiaVersion = SursentiaVersion.V2_0
     device: Device = Device.CPU
     cache_dir_path: Path = Path('cache')
     remove_channels: bool = True
@@ -211,7 +211,7 @@ class Sursentia(IDMixin):
                 is not used)
             solar_channel_name: Channel name of the solar panels channel (if None, the solar head of the model
                 is not used)
-            version: Version of the model (`V2_0`)
+            version: Version of the model (`V1_0` or `V2_0`)
             device: Device to run the model on (`CPU` or `GPU`)
             cache_dir_path: Path to cache directory of the model
             remove_channels: If True, the channels are removed
@@ -370,6 +370,7 @@ class Sursentia(IDMixin):
         inputs = {'tensor': inputs}
 
         logits_dict = {}
+
         if self._landcover_model is not None:
             logits_dict.update(
                 self._landcover_inference(
@@ -601,6 +602,7 @@ class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
     """Configuration for the `from_config` class method of `SursentiaMapFieldProcessor`
 
     Create the configuration from a config file:
+        - Use '1.0' or '2.0' instead of `SursentiaVersion.V1_0` or `SursentiaVersion.V2_0`
         - Use null instead of None
 
     Example:
@@ -628,7 +630,7 @@ class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
             defaults to None
         new_solar_layer_name: New layer name of the solar layer -
             defaults to None
-        version: Version of the model (`V2_0`) -
+        version: Version of the model (`V1_0` or `V2_0`) -
             defaults to `SursentiaVersion.V2_0`
     """
     field: str
@@ -636,6 +638,7 @@ class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
     solar_layer_name: str | None = 'sursentia_solar'
     new_landcover_layer_name: str | None = None
     new_solar_layer_name: str | None = None
+    version: SursentiaVersion = SursentiaVersion.V2_0
 
 
 @register_vector_processor(config_class=SursentiaMapFieldProcessorConfig)
@@ -643,12 +646,26 @@ class SursentiaMapFieldProcessorConfig(pydantic.BaseModel):
 class SursentiaMapFieldProcessor(IDMixin):
     """Vector processor that maps the fields of the layers of the Sursentia model.
 
-    Landcover mapping:
+    Landcover mapping (v1.0):
         - 0: 'Gebäude'
         - 1: 'Gründach'
         - 2: 'versiegelte Fläche'
         - 3: 'nicht versiegelte Fläche'
         - 4: 'Gewässer'
+
+    Landcover mapping (v2.0):
+        - 0: 'Flachdach'
+        - 1: 'Gründach'
+        - 2: 'Schrägdach'
+        - 3: 'Verkehrsfläche'
+        - 4: 'Pool'
+        - 5: 'Gleis'
+        - 6: 'sonstige versiegelte Fläche'
+        - 7: 'Vegetation'
+        - 8: 'Agrarfläche'
+        - 9: 'Gewässer'
+        - 10: 'sonstige nicht versiegelte Fläche'
+        - 11: 'nicht versiegelter Weg'
 
     Solar mapping:
         - 0: 'Hintergrund'
@@ -666,17 +683,17 @@ class SursentiaMapFieldProcessor(IDMixin):
         },
         SursentiaVersion.V2_0: {
             0: 'Flachdach',
-            1: 'Gruendach',
-            2: 'Schraegdach',
-            3: 'Verkehrsflaeche',
+            1: 'Gründach',
+            2: 'Schrägdach',
+            3: 'Verkehrsfläche',
             4: 'Pool',
             5: 'Gleis',
-            6: 'sonstige versiegelte Flaeche',
+            6: 'sonstige versiegelte Fläche',
             7: 'Vegetation',
-            8: 'Agrarflaeche',
-            9: 'Gewaesser',
-            10: 'sonstige unversiegelte Flaeche',
-            11: 'unversiegelter Weg',
+            8: 'Agrarfläche',
+            9: 'Gewässer',
+            10: 'sonstige nicht versiegelte Fläche',
+            11: 'nicht versiegelter Weg',
         },
     }
     _SOLAR_MAPPING = {  # noqa: RUF012
@@ -700,7 +717,7 @@ class SursentiaMapFieldProcessor(IDMixin):
             solar_layer_name: Layer name of the solar layer (if None, the solar layer is not used)
             new_landcover_layer_name: New layer name of the landcover layer
             new_solar_layer_name: New layer name of the solar layer
-            version: Version of the model (`V2_0`)
+            version: Version of the model (`V1_0` or `V2_0`)
         """
         self._field = field
         self._landcover_layer_name = landcover_layer_name
